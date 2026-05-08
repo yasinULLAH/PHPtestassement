@@ -1,824 +1,866 @@
 <?php
-/**
- * ticktock — Timesheet Management Application
- * Built with Native PHP and Vanilla JavaScript (No React/Next.js/Frameworks)
- * Reasons for Native: Zero dependency bloat, unmatched performance, future-proof standards.
- */
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'ticktock_db');
 define('DB_USER', 'root');
 define('DB_PASS', 'root');
 define('DB_CHARSET', 'utf8mb4');
-
 define('SESSION_IDLE_TIMEOUT', 2400);
 define('SESSION_ABSOLUTE_TIMEOUT', 28800);
-
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_strict_mode', 1);
-date_default_timezone_set('UTC'); // Or a configurable timezone
+date_default_timezone_set('UTC');
 session_start();
 
-function getDB(): PDO {
-    static $pdo = null;
-    if ($pdo === null) {
-        $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
-        $options = [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-        ];
-        try {
-            $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
-        } catch (PDOException $e) {
-            jsonError('Database connection failed.', 500);
-        }
-    }
-    return $pdo;
-}
-
-function jsonOut(array $data, int $code = 200): void {
-    http_response_code($code);
-    header('Content-Type: application/json');
-    echo json_encode($data);
-    exit;
-}
-
-function jsonError(string $message, int $code = 400): void {
-    jsonOut(['success' => false, 'error' => $message], $code);
-}
-
-function requireAuth(): void {
-    if (empty($_SESSION['user_id'])) {
-        jsonError('Unauthenticated', 401);
-    }
-    $now = time();
-    if (!empty($_SESSION['last_activity']) && ($now - $_SESSION['last_activity']) > SESSION_IDLE_TIMEOUT) {
-        session_destroy();
-        jsonError('Session expired due to inactivity', 401);
-    }
-    if (!empty($_SESSION['session_start']) && ($now - $_SESSION['session_start']) > SESSION_ABSOLUTE_TIMEOUT) {
-        session_destroy();
-        jsonError('Session expired', 401);
-    }
-    $_SESSION['last_activity'] = $now;
-}
-
-function requireAdmin(): void {
-    requireAuth();
-    if ($_SESSION['user_role'] !== 'admin') {
-        jsonError('Access denied. Admin only.', 403);
-    }
-}
-
-function sanitizeStr(string $val): string {
-    return htmlspecialchars(trim($val), ENT_QUOTES, 'UTF-8');
-}
-
-function csrfToken(): string {
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
-    return $_SESSION['csrf_token'];
-}
-
-function verifyCsrf(): void {
-    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf_token'] ?? '');
-    if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
-        jsonError('Invalid CSRF token', 403);
-    }
-}
-
-function generateCaptchaImage(int $answer, string $question): string {
-    $width = 200;
-    $height = 60;
-    $img = imagecreatetruecolor($width, $height);
-    $bg = imagecolorallocate($img, 248, 249, 250);
-    imagefilledrectangle($img, 0, 0, $width, $height, $bg);
-    for ($i = 0; $i < 6; $i++) {
-        $lc = imagecolorallocate($img, rand(180,220), rand(180,220), rand(180,220));
-        imageline($img, rand(0,$width), rand(0,$height), rand(0,$width), rand(0,$height), $lc);
-    }
-    for ($i = 0; $i < 120; $i++) {
-        $nc = imagecolorallocate($img, rand(150,210), rand(150,210), rand(150,210));
-        imagesetpixel($img, rand(0,$width), rand(0,$height), $nc);
-    }
-    $textColor = imagecolorallocate($img, 30, 40, 80);
-    $fontSize = 5;
-    $textWidth = imagefontwidth($fontSize) * strlen($question);
-    $x = (int)(($width - $textWidth) / 2);
-    $y = (int)(($height - imagefontheight($fontSize)) / 2);
-    imagestring($img, $fontSize, $x, $y, $question, $textColor);
-    ob_start();
-    imagepng($img);
-    $imgData = ob_get_clean();
-    imagedestroy($img);
-    return base64_encode($imgData);
-}
-
-function cleanExpiredCaptchas(): void {
+function getDB(): PDO
+{
+  static $pdo = null;
+  if ($pdo === null) {
+    $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
+    $options = [
+      PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+      PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+      PDO::ATTR_EMULATE_PREPARES => false,
+    ];
     try {
-        $db = getDB();
-        $db->exec("DELETE FROM captcha_store WHERE expires_at < NOW()");
-    } catch (Exception $e) {}
-}
-
-function getWeekRange(int $year, int $week): array {
-    $dt = new DateTime();
-    $dt->setISODate($year, $week, 1);
-    $start = clone $dt;
-    $dt->setISODate($year, $week, 7);
-    $end = clone $dt;
-    return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d')];
-}
-
-function getWeeksInRange(string $startDate, string $endDate): array {
-    $start = new DateTime($startDate);
-    $end = new DateTime($endDate);
-    $weeks = [];
-    $current = clone $start;
-    $current->modify('Monday this week');
-    while ($current <= $end) {
-        $weekEnd = clone $current;
-        $weekEnd->modify('+6 days');
-        $weeks[] = [
-            'year' => (int)$current->format('o'),
-            'week' => (int)$current->format('W'),
-            'start' => $current->format('Y-m-d'),
-            'end' => $weekEnd->format('Y-m-d'),
-        ];
-        $current->modify('+7 days');
+      $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+    } catch (PDOException $e) {
+      jsonError('Database connection failed.', 500);
     }
-    return $weeks;
+  }
+  return $pdo;
 }
 
-function checkRateLimit(): void {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    try {
-        $db = getDB();
-        $db->prepare("INSERT INTO login_attempts (ip_address) VALUES (?)")->execute([$ip]);
-        $stmt = $db->prepare("SELECT COUNT(*) FROM login_attempts WHERE ip_address = ? AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
-        $stmt->execute([$ip]);
-        if ((int)$stmt->fetchColumn() > 10) {
-            jsonError('Too many login attempts. Please try again in 15 minutes.', 429);
-        }
-    } catch (Exception $e) {}
+function jsonOut(array $data, int $code = 200): void
+{
+  http_response_code($code);
+  header('Content-Type: application/json');
+  echo json_encode($data);
+  exit;
 }
 
-function logEmail(string $to, string $subject, string $body): void {
-    $entry = "[" . date('Y-m-d H:i:s') . "] TO: $to | SUBJECT: $subject\nBODY: $body\n" . str_repeat('-', 40) . "\n";
-    file_put_contents('email.txt', $entry, FILE_APPEND);
+function jsonError(string $message, int $code = 400): void
+{
+  jsonOut(['success' => false, 'error' => $message], $code);
+}
+
+function requireAuth(): void
+{
+  if (empty($_SESSION['user_id'])) {
+    jsonError('Unauthenticated', 401);
+  }
+  $now = time();
+  if (!empty($_SESSION['last_activity']) && ($now - $_SESSION['last_activity']) > SESSION_IDLE_TIMEOUT) {
+    session_destroy();
+    jsonError('Session expired due to inactivity', 401);
+  }
+  if (!empty($_SESSION['session_start']) && ($now - $_SESSION['session_start']) > SESSION_ABSOLUTE_TIMEOUT) {
+    session_destroy();
+    jsonError('Session expired', 401);
+  }
+  $_SESSION['last_activity'] = $now;
+}
+
+function requireAdmin(): void
+{
+  requireAuth();
+  if ($_SESSION['user_role'] !== 'admin') {
+    jsonError('Access denied. Admin only.', 403);
+  }
+}
+
+function sanitizeStr(string $val): string
+{
+  return htmlspecialchars(trim($val), ENT_QUOTES, 'UTF-8');
+}
+
+function csrfToken(): string
+{
+  if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+  }
+  return $_SESSION['csrf_token'];
+}
+
+function verifyCsrf(): void
+{
+  $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf_token'] ?? '');
+  if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
+    jsonError('Invalid CSRF token', 403);
+  }
+}
+
+function generateCaptchaImage(int $answer, string $question): string
+{
+  $width = 200;
+  $height = 60;
+  $img = imagecreatetruecolor($width, $height);
+  $bg = imagecolorallocate($img, 248, 249, 250);
+  imagefilledrectangle($img, 0, 0, $width, $height, $bg);
+  for ($i = 0; $i < 6; $i++) {
+    $lc = imagecolorallocate($img, rand(180, 220), rand(180, 220), rand(180, 220));
+    imageline($img, rand(0, $width), rand(0, $height), rand(0, $width), rand(0, $height), $lc);
+  }
+  for ($i = 0; $i < 120; $i++) {
+    $nc = imagecolorallocate($img, rand(150, 210), rand(150, 210), rand(150, 210));
+    imagesetpixel($img, rand(0, $width), rand(0, $height), $nc);
+  }
+  $textColor = imagecolorallocate($img, 30, 40, 80);
+  $fontSize = 5;
+  $textWidth = imagefontwidth($fontSize) * strlen($question);
+  $x = (int) (($width - $textWidth) / 2);
+  $y = (int) (($height - imagefontheight($fontSize)) / 2);
+  imagestring($img, $fontSize, $x, $y, $question, $textColor);
+  ob_start();
+  imagepng($img);
+  $imgData = ob_get_clean();
+  imagedestroy($img);
+  return base64_encode($imgData);
+}
+
+function cleanExpiredCaptchas(): void
+{
+  try {
+    $db = getDB();
+    $db->exec('DELETE FROM captcha_store WHERE expires_at < NOW()');
+  } catch (Exception $e) {
+  }
+}
+
+function getWeekRange(int $year, int $week): array
+{
+  $dt = new DateTime();
+  $dt->setISODate($year, $week, 1);
+  $start = clone $dt;
+  $dt->setISODate($year, $week, 7);
+  $end = clone $dt;
+  return ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d')];
+}
+
+function getWeeksInRange(string $startDate, string $endDate): array
+{
+  $start = new DateTime($startDate);
+  $end = new DateTime($endDate);
+  $weeks = [];
+  $current = clone $start;
+  $current->modify('Monday this week');
+  while ($current <= $end) {
+    $weekEnd = clone $current;
+    $weekEnd->modify('+6 days');
+    $weeks[] = [
+      'year' => (int) $current->format('o'),
+      'week' => (int) $current->format('W'),
+      'start' => $current->format('Y-m-d'),
+      'end' => $weekEnd->format('Y-m-d'),
+    ];
+    $current->modify('+7 days');
+  }
+  return $weeks;
+}
+
+function checkRateLimit(): void
+{
+  $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+  try {
+    $db = getDB();
+    $db->prepare('INSERT INTO login_attempts (ip_address) VALUES (?)')->execute([$ip]);
+    $stmt = $db->prepare('SELECT COUNT(*) FROM login_attempts WHERE ip_address = ? AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)');
+    $stmt->execute([$ip]);
+    if ((int) $stmt->fetchColumn() > 10) {
+      jsonError('Too many login attempts. Please try again in 15 minutes.', 429);
+    }
+  } catch (Exception $e) {
+  }
+}
+
+function logEmail(string $to, string $subject, string $body): void
+{
+  $entry = '[' . date('Y-m-d H:i:s') . "] TO: $to | SUBJECT: $subject\nBODY: $body\n" . str_repeat('-', 40) . "\n";
+  file_put_contents('email.txt', $entry, FILE_APPEND);
 }
 
 $api = $_GET['api'] ?? '';
-
 if ($api !== '') {
-    switch ($api) {
-        case 'captcha':
-            cleanExpiredCaptchas();
-            $a = rand(1, 9);
-            $b = rand(1, 9);
-            $answer = $a + $b;
-            $question = "$a + $b = ?";
-            $token = bin2hex(random_bytes(16));
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("INSERT INTO captcha_store (token, answer, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))");
-                $stmt->execute([$token, (string)$answer]);
-            } catch (Exception $e) {
-                $token = '';
-            }
-            $imgB64 = generateCaptchaImage($answer, $question);
-            jsonOut(['token' => $token, 'image' => 'data:image/png;base64,' . $imgB64]);
-            break;
-
-        case 'login':
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            checkRateLimit();
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $email = trim($body['email'] ?? '');
-            $password = $body['password'] ?? '';
-            $captchaToken = $body['captcha_token'] ?? '';
-            $captchaAnswer = trim($body['captcha_answer'] ?? '');
-
-            if (empty($email) || empty($password)) jsonError('Email and password are required.');
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) jsonError('Invalid email format.');
-            if (strlen($password) < 8) jsonError('Password must be at least 8 characters.');
-            if (empty($captchaToken) || empty($captchaAnswer)) jsonError('Please complete the CAPTCHA.');
-
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT answer FROM captcha_store WHERE token = ? AND expires_at > NOW()");
-                $stmt->execute([$captchaToken]);
-                $captchaRow = $stmt->fetch();
-                if (!$captchaRow) jsonError('CAPTCHA expired. Please refresh and try again.');
-                if ((string)$captchaRow['answer'] !== $captchaAnswer) {
-                    $db->prepare("DELETE FROM captcha_store WHERE token = ?")->execute([$captchaToken]);
-                    jsonError('Incorrect CAPTCHA answer.');
-                }
-                $db->prepare("DELETE FROM captcha_store WHERE token = ?")->execute([$captchaToken]);
-
-                $stmt = $db->prepare("SELECT id, email, password_hash, name, role, is_approved FROM users WHERE email = ? AND is_active = 1 AND is_deleted = 0");
-                $stmt->execute([$email]);
-                $user = $stmt->fetch();
-
-                if (!$user || !password_verify($password, $user['password_hash'])) {
-                    jsonError('Invalid email or password.');
-                }
-
-                if ($user['is_approved'] == 0) {
-                    jsonError('Your account is pending approval by an admin.');
-                }
-
-                $db->prepare("DELETE FROM login_attempts WHERE ip_address = ?")->execute([$_SERVER['REMOTE_ADDR'] ?? 'unknown']);
-
-                session_regenerate_id(true);
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['user_name'] = $user['name'];
-                $_SESSION['user_email'] = $user['email'];
-                $_SESSION['user_role'] = $user['role'];
-                $_SESSION['last_activity'] = time();
-                $_SESSION['session_start'] = time();
-                csrfToken();
-
-                jsonOut(['success' => true, 'user' => ['id' => $user['id'], 'name' => $user['name'], 'email' => $user['email'], 'role' => $user['role']], 'csrf' => $_SESSION['csrf_token']]);
-            } catch (PDOException $e) {
-                jsonError('Login failed. Please try again.', 500);
-            }
-            break;
-
-        case 'register':
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $name = sanitizeStr($body['name'] ?? '');
-            $email = trim($body['email'] ?? '');
-            $password = $body['password'] ?? '';
-            $confirm = $body['confirm_password'] ?? '';
-            $captchaToken = $body['captcha_token'] ?? '';
-            $captchaAnswer = trim($body['captcha_answer'] ?? '');
-
-            if (empty($name) || empty($email) || empty($password)) jsonError('All fields are required.');
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) jsonError('Invalid email format.');
-            if (strlen($password) < 8) jsonError('Password must be at least 8 characters.');
-            if ($password !== $confirm) jsonError('Passwords do not match.');
-            if (empty($captchaToken) || empty($captchaAnswer)) jsonError('Please complete the CAPTCHA.');
-
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT answer FROM captcha_store WHERE token = ? AND expires_at > NOW()");
-                $stmt->execute([$captchaToken]);
-                $captchaRow = $stmt->fetch();
-                if (!$captchaRow) jsonError('CAPTCHA expired.');
-                if ((string)$captchaRow['answer'] !== $captchaAnswer) {
-                    $db->prepare("DELETE FROM captcha_store WHERE token = ?")->execute([$captchaToken]);
-                    jsonError('Incorrect CAPTCHA answer.');
-                }
-                $db->prepare("DELETE FROM captcha_store WHERE token = ?")->execute([$captchaToken]);
-
-                $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
-                $stmt->execute([$email]);
-                if ($stmt->fetch()) jsonError('Email already registered.');
-
-                $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-                $stmt = $db->prepare("INSERT INTO users (name, email, password_hash, role, is_approved) VALUES (?, ?, ?, 'user', 0)");
-                $stmt->execute([$name, $email, $hash]);
-
-                jsonOut(['success' => true, 'message' => 'Registration successful! Your account is pending admin approval.']);
-            } catch (PDOException $e) {
-                jsonError('Registration failed.', 500);
-            }
-            break;
-
-        case 'logout':
-            session_destroy();
-            jsonOut(['success' => true]);
-            break;
-
-        case 'me':
-            if (empty($_SESSION['user_id'])) {
-                jsonOut(['success' => false, 'error' => 'Unauthenticated'], 200);
-            }
-            requireAuth();
-            jsonOut(['success' => true, 'user' => ['id' => $_SESSION['user_id'], 'name' => $_SESSION['user_name'], 'email' => $_SESSION['user_email'], 'role' => $_SESSION['user_role']], 'csrf' => csrfToken()]);
-            break;
-
-        case 'timesheets':
-            requireAuth();
-            $userId = (int)$_SESSION['user_id'];
-            $startDate = $_GET['start'] ?? date('Y-01-01');
-            $endDate = $_GET['end'] ?? date('Y-12-31');
-
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
-                jsonError('Invalid date format.');
-            }
-
-            try {
-                $db = getDB();
-                $uStmt = $db->prepare("SELECT standard_hours FROM users WHERE id = ?");
-                $uStmt->execute([$userId]);
-                $stdHours = (float)($uStmt->fetchColumn() ?: 40.00);
-
-                $stmt = $db->prepare("SELECT date, SUM(hours) as total_hours FROM timesheet_entries WHERE user_id = ? AND date BETWEEN ? AND ? GROUP BY date");
-                $stmt->execute([$userId, $startDate, $endDate]);
-                $entriesByDate = [];
-                while ($row = $stmt->fetch()) {
-                    $entriesByDate[$row['date']] = (float)$row['total_hours'];
-                }
-
-                $sStmt = $db->prepare("SELECT year, week, status, rejection_reason FROM timesheet_submissions WHERE user_id = ?");
-                $sStmt->execute([$userId]);
-                $subs = [];
-                while ($srow = $sStmt->fetch()) {
-                    $subs[$srow['year'] . '-' . $srow['week']] = [
-                        'status' => $srow['status'],
-                        'reason' => $srow['rejection_reason']
-                    ];
-                }
-
-                $weeks = getWeeksInRange($startDate, $endDate);
-                $result = [];
-                $weekNum = 1;
-                foreach ($weeks as $w) {
-                    $totalHours = 0.0;
-                    $d = new DateTime($w['start']);
-                    $dEnd = new DateTime($w['end']);
-                    while ($d <= $dEnd) {
-                        $ds = $d->format('Y-m-d');
-                        $totalHours += $entriesByDate[$ds] ?? 0.0;
-                        $d->modify('+1 day');
-                    }
-                    
-                    $subInfo = $subs[$w['year'] . '-' . $w['week']] ?? null;
-                    $status = 'missing';
-                    $reason = '';
-                    if ($subInfo) {
-                        $status = $subInfo['status'];
-                        $reason = $subInfo['reason'];
-                    }
-                    elseif ($totalHours >= $stdHours) $status = 'completed';
-                    elseif ($totalHours > 0) $status = 'incomplete';
-
-                    $startDt = new DateTime($w['start']);
-                    $endDt = new DateTime($w['end']);
-                    $dateLabel = $startDt->format('j') . ' - ' . $endDt->format('j F, Y');
-
-                    $result[] = [
-                        'week_num' => $weekNum++,
-                        'year' => $w['year'],
-                        'week' => $w['week'],
-                        'date_start' => $w['start'],
-                        'date_end' => $w['end'],
-                        'date_label' => $dateLabel,
-                        'total_hours' => $totalHours,
-                        'std_hours' => $stdHours,
-                        'status' => $status,
-                        'rejection_reason' => $reason
-                    ];
-                }
-                jsonOut(['success' => true, 'timesheets' => $result]);
-            } catch (PDOException $e) {
-                jsonError('Failed to load timesheets.', 500);
-            }
-            break;
-
-        case 'week_entries':
-            requireAuth();
-            $userId = (int)$_SESSION['user_id'];
-            $startDate = $_GET['start'] ?? '';
-            $endDate = $_GET['end'] ?? '';
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
-                jsonError('Invalid date format.');
-            }
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT te.id, te.date, te.description, te.hours, p.name as project_name, p.id as project_id, wt.name as work_type_name, wt.id as work_type_id FROM timesheet_entries te JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE te.user_id = ? AND te.date BETWEEN ? AND ? ORDER BY te.date ASC, te.id ASC");
-                $stmt->execute([$userId, $startDate, $endDate]);
-                $entries = $stmt->fetchAll();
-                $totalHours = array_sum(array_column($entries, 'hours'));
-                jsonOut(['success' => true, 'entries' => $entries, 'total_hours' => (float)$totalHours, 'start' => $startDate, 'end' => $endDate]);
-            } catch (PDOException $e) {
-                jsonError('Failed to load entries.', 500);
-            }
-            break;
-
-        case 'entry':
-            requireAuth();
-            $userId = (int)$_SESSION['user_id'];
-
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                verifyCsrf();
-                $body = json_decode(file_get_contents('php://input'), true) ?? [];
-                $id = isset($body['id']) ? (int)$body['id'] : 0;
-                $date = sanitizeStr($body['date'] ?? '');
-                $projectId = (int)($body['project_id'] ?? 0);
-                $workTypeId = (int)($body['work_type_id'] ?? 0);
-                $description = sanitizeStr($body['description'] ?? '');
-                $hours = round((float)($body['hours'] ?? 0), 2);
-
-                if (empty($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) jsonError('Invalid date.');
-                if ($projectId <= 0) jsonError('Please select a project.');
-                if ($workTypeId <= 0) jsonError('Please select a work type.');
-                if (empty($description)) jsonError('Task description is required.');
-                if ($hours <= 0 || $hours > 24) jsonError('Hours must be between 0.5 and 24.');
-
-                try {
-                    $db = getDB();
-                    // Check submission status
-                    $dt = new DateTime($date);
-                    $year = (int)$dt->format('o');
-                    $week = (int)$dt->format('W');
-                    $sStmt = $db->prepare("SELECT status FROM timesheet_submissions WHERE user_id = ? AND year = ? AND week = ?");
-                    $sStmt->execute([$userId, $year, $week]);
-                    $subStatus = $sStmt->fetchColumn();
-                    if ($subStatus === 'pending' || $subStatus === 'approved') {
-                        jsonError('This week is ' . $subStatus . ' and locked for editing.');
-                    }
-
-                    $stmt = $db->prepare("SELECT id FROM projects WHERE id = ? AND is_active = 1");
-                    $stmt->execute([$projectId]);
-                    if (!$stmt->fetch()) jsonError('Invalid project.');
-                    $stmt = $db->prepare("SELECT id FROM work_types WHERE id = ? AND is_active = 1");
-                    $stmt->execute([$workTypeId]);
-                    if (!$stmt->fetch()) jsonError('Invalid work type.');
-
-                    if ($id > 0) {
-                        $stmt = $db->prepare("SELECT id FROM timesheet_entries WHERE id = ? AND user_id = ?");
-                        $stmt->execute([$id, $userId]);
-                        if (!$stmt->fetch()) jsonError('Entry not found or access denied.', 403);
-                        $stmt = $db->prepare("UPDATE timesheet_entries SET date=?, project_id=?, work_type_id=?, description=?, hours=? WHERE id=? AND user_id=?");
-                        $stmt->execute([$date, $projectId, $workTypeId, $description, $hours, $id, $userId]);
-                        jsonOut(['success' => true, 'message' => 'Entry updated successfully.']);
-                    } else {
-                        $stmt = $db->prepare("INSERT INTO timesheet_entries (user_id, date, project_id, work_type_id, description, hours) VALUES (?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$userId, $date, $projectId, $workTypeId, $description, $hours]);
-                        jsonOut(['success' => true, 'message' => 'Entry added successfully.', 'id' => (int)$db->lastInsertId()]);
-                    }
-                } catch (PDOException $e) {
-                    jsonError('Failed to save entry.', 500);
-                }
-            } elseif ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
-                verifyCsrf();
-                $body = json_decode(file_get_contents('php://input'), true) ?? [];
-                $id = (int)($body['id'] ?? 0);
-                if ($id <= 0) jsonError('Invalid entry ID.');
-                try {
-                    $db = getDB();
-                    $stmt = $db->prepare("SELECT date FROM timesheet_entries WHERE id = ? AND user_id = ?");
-                    $stmt->execute([$id, $userId]);
-                    $entryDate = $stmt->fetchColumn();
-                    if (!$entryDate) jsonError('Entry not found or access denied.', 403);
-
-                    $dt = new DateTime($entryDate);
-                    $year = (int)$dt->format('o');
-                    $week = (int)$dt->format('W');
-                    $sStmt = $db->prepare("SELECT status FROM timesheet_submissions WHERE user_id = ? AND year = ? AND week = ?");
-                    $sStmt->execute([$userId, $year, $week]);
-                    $subStatus = $sStmt->fetchColumn();
-                    if ($subStatus === 'pending' || $subStatus === 'approved') {
-                        jsonError('This week is ' . $subStatus . ' and locked.');
-                    }
-
-                    $db->prepare("DELETE FROM timesheet_entries WHERE id = ? AND user_id = ?")->execute([$id, $userId]);
-                    jsonOut(['success' => true, 'message' => 'Entry deleted.']);
-                } catch (PDOException $e) {
-                    jsonError('Failed to delete entry.', 500);
-                }
-            } else {
-                jsonError('Method not allowed.', 405);
-            }
-            break;
-
-        case 'projects':
-            requireAuth();
-            try {
-                $db = getDB();
-                $where = ($_SESSION['user_role'] === 'admin') ? "" : " WHERE is_active = 1";
-                $projects = $db->query("SELECT id, name, is_active FROM projects $where ORDER BY name ASC")->fetchAll();
-                jsonOut(['success' => true, 'projects' => $projects]);
-            } catch (PDOException $e) {
-                jsonError('Failed to load projects.', 500);
-            }
-            break;
-
-        case 'admin_project_save':
-            requireAdmin();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $id = (int)($body['id'] ?? 0);
-            $name = sanitizeStr($body['name'] ?? '');
-            $isActive = isset($body['is_active']) ? (int)$body['is_active'] : 1;
-            if (empty($name)) jsonError('Project name is required.');
-            try {
-                $db = getDB();
-                if ($id > 0) {
-                    $stmt = $db->prepare("UPDATE projects SET name = ?, is_active = ? WHERE id = ?");
-                    $stmt->execute([$name, $isActive, $id]);
-                    jsonOut(['success' => true, 'message' => 'Project updated successfully.']);
-                } else {
-                    $stmt = $db->prepare("INSERT INTO projects (name, is_active) VALUES (?, ?)");
-                    $stmt->execute([$name, $isActive]);
-                    jsonOut(['success' => true, 'message' => 'Project added successfully.', 'id' => (int)$db->lastInsertId()]);
-                }
-            } catch (PDOException $e) { jsonError('Failed to save project.', 500); }
-            break;
-
-        case 'work_types':
-            requireAuth();
-            try {
-                $db = getDB();
-                $where = ($_SESSION['user_role'] === 'admin') ? "" : " WHERE is_active = 1";
-                $types = $db->query("SELECT id, name, is_active FROM work_types $where ORDER BY name ASC")->fetchAll();
-                jsonOut(['success' => true, 'work_types' => $types]);
-            } catch (PDOException $e) {
-                jsonError('Failed to load work types.', 500);
-            }
-            break;
-
-        case 'admin_work_type_save':
-            requireAdmin();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $id = (int)($body['id'] ?? 0);
-            $name = sanitizeStr($body['name'] ?? '');
-            $isActive = isset($body['is_active']) ? (int)$body['is_active'] : 1;
-            if (empty($name)) jsonError('Work type name is required.');
-            try {
-                $db = getDB();
-                if ($id > 0) {
-                    $stmt = $db->prepare("UPDATE work_types SET name = ?, is_active = ? WHERE id = ?");
-                    $stmt->execute([$name, $isActive, $id]);
-                    jsonOut(['success' => true, 'message' => 'Work type updated successfully.']);
-                } else {
-                    $stmt = $db->prepare("INSERT INTO work_types (name, is_active) VALUES (?, ?)");
-                    $stmt->execute([$name, $isActive]);
-                    jsonOut(['success' => true, 'message' => 'Work type added successfully.', 'id' => (int)$db->lastInsertId()]);
-                }
-            } catch (PDOException $e) { jsonError('Failed to save work type.', 500); }
-            break;
-
-        case 'admin_users':
-            requireAdmin();
-            try {
-                $db = getDB();
-                $users = $db->query("SELECT id, name, email, role, standard_hours, is_approved, is_active, created_at FROM users WHERE is_deleted = 0 ORDER BY created_at DESC")->fetchAll();
-                jsonOut(['success' => true, 'users' => $users]);
-            } catch (PDOException $e) {
-                jsonError('Failed to load users.', 500);
-            }
-            break;
-
-        case 'admin_user_update':
-            requireAdmin();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $id = (int)($body['id'] ?? 0);
-            $role = sanitizeStr($body['role'] ?? 'user');
-            $isApproved = isset($body['is_approved']) ? (int)$body['is_approved'] : 0;
-            $isActive = isset($body['is_active']) ? (int)$body['is_active'] : 1;
-            $standardHours = isset($body['standard_hours']) ? round((float)$body['standard_hours'], 2) : 40.00;
-
-            if ($id <= 0) jsonError('Invalid user ID.');
-            if (!in_array($role, ['admin', 'user'])) jsonError('Invalid role.');
-            if ($standardHours < 0 || $standardHours > 168) jsonError('Invalid standard hours.');
-
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("UPDATE users SET role = ?, is_approved = ?, is_active = ?, standard_hours = ? WHERE id = ?");
-                $stmt->execute([$role, $isApproved, $isActive, $standardHours, $id]);
-                jsonOut(['success' => true, 'message' => 'User updated successfully.']);
-            } catch (PDOException $e) {
-                jsonError('Failed to update user.', 500);
-            }
-            break;
-
-        case 'admin_user_delete':
-            requireAdmin();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'DELETE') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $id = (int)($body['id'] ?? 0);
-            if ($id <= 0) jsonError('Invalid user ID.');
-            if ($id == $_SESSION['user_id']) jsonError('You cannot delete yourself.');
-
-            try {
-                $db = getDB();
-                $db->prepare("UPDATE users SET is_deleted = 1, is_active = 0 WHERE id = ?")->execute([$id]);
-                jsonOut(['success' => true, 'message' => 'User account deactivated (Soft Delete).']);
-            } catch (PDOException $e) {
-                jsonError('Failed to delete user.', 500);
-            }
-            break;
-
-        case 'submit_week':
-            requireAuth();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $year = (int)($body['year'] ?? 0);
-            $week = (int)($body['week'] ?? 0);
-            $userId = $_SESSION['user_id'];
-            if ($year <= 0 || $week <= 0) jsonError('Invalid year/week.');
-            try {
-                $db = getDB();
-                $range = getWeekRange($year, $week);
-                $stmt = $db->prepare("SELECT COUNT(*) FROM timesheet_entries WHERE user_id = ? AND date BETWEEN ? AND ?");
-                $stmt->execute([$userId, $range['start'], $range['end']]);
-                if ($stmt->fetchColumn() == 0) jsonError('No entries found for this week. Cannot submit empty timesheet.');
-
-                $stmt = $db->prepare("INSERT INTO timesheet_submissions (user_id, year, week, status) VALUES (?, ?, ?, 'pending') ON DUPLICATE KEY UPDATE status = 'pending', reviewed_at = NULL, reviewed_by = NULL");
-                $stmt->execute([$userId, $year, $week]);
-                $submissionId = $db->lastInsertId() ?: $db->query("SELECT id FROM timesheet_submissions WHERE user_id=$userId AND year=$year AND week=$week")->fetchColumn();
-                $db->prepare("UPDATE timesheet_entries SET submission_id = ? WHERE user_id = ? AND date BETWEEN ? AND ?")->execute([$submissionId, $userId, $range['start'], $range['end']]);
-                jsonOut(['success' => true, 'message' => 'Timesheet submitted for approval.']);
-            } catch (PDOException $e) { jsonError('Submission failed.', 500); }
-            break;
-
-        case 'admin_submissions':
-            requireAdmin();
-            try {
-                $db = getDB();
-                $subs = $db->query("SELECT ts.*, u.name as user_name, u.email as user_email FROM timesheet_submissions ts JOIN users u ON u.id = ts.user_id WHERE ts.status = 'pending' ORDER BY ts.submitted_at DESC")->fetchAll();
-                jsonOut(['success' => true, 'submissions' => $subs]);
-            } catch (PDOException $e) { jsonError('Failed to load submissions.', 500); }
-            break;
-
-        case 'admin_submission_review':
-            requireAdmin();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $id = (int)($body['id'] ?? 0);
-            $status = sanitizeStr($body['status'] ?? '');
-            $reason = sanitizeStr($body['reason'] ?? '');
-            if (!in_array($status, ['approved', 'rejected'])) jsonError('Invalid status.');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("UPDATE timesheet_submissions SET status = ?, rejection_reason = ?, reviewed_at = NOW(), reviewed_by = ? WHERE id = ?");
-                $stmt->execute([$status, ($status === 'rejected' ? $reason : null), $_SESSION['user_id'], $id]);
-                jsonOut(['success' => true, 'message' => 'Submission ' . $status . '.']);
-            } catch (PDOException $e) { jsonError('Failed to review submission.', 500); }
-            break;
-
-        case 'update_profile':
-            requireAuth();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $name = sanitizeStr($body['name'] ?? '');
-            $email = trim($body['email'] ?? '');
-            if (empty($name) || empty($email)) jsonError('Name and email are required.');
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) jsonError('Invalid email.');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
-                $stmt->execute([$email, $_SESSION['user_id']]);
-                if ($stmt->fetch()) jsonError('Email already in use.');
-                $stmt = $db->prepare("UPDATE users SET name = ?, email = ? WHERE id = ?");
-                $stmt->execute([$name, $email, $_SESSION['user_id']]);
-                $_SESSION['user_name'] = $name;
-                $_SESSION['user_email'] = $email;
-                jsonOut(['success' => true, 'message' => 'Profile updated.']);
-            } catch (PDOException $e) { jsonError('Failed to update profile.', 500); }
-            break;
-
-        case 'upload_avatar':
-            requireAuth();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            if (!isset($_FILES['avatar'])) jsonError('No file uploaded.');
-            $file = $_FILES['avatar'];
-            if ($file['error'] !== UPLOAD_ERR_OK) jsonError('Upload failed.');
-            $allowed = ['image/jpeg', 'image/png', 'image/webp'];
-            if (!in_array($file['type'], $allowed)) jsonError('Invalid file type. Only JPG, PNG, and WebP allowed.');
-            if ($file['size'] > 2 * 1024 * 1024) jsonError('File too large. Max 2MB.');
-
-            $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-            $filename = 'avatar_' . $_SESSION['user_id'] . '_' . time() . '.' . $ext;
-            $uploadDir = 'uploads/avatars/';
-            if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-            $path = $uploadDir . $filename;
-
-            if (move_uploaded_file($file['tmp_name'], $path)) {
-                try {
-                    $db = getDB();
-                    $db->prepare("UPDATE users SET avatar_url = ? WHERE id = ?")->execute([$path, $_SESSION['user_id']]);
-                    jsonOut(['success' => true, 'avatar_url' => $path]);
-                } catch (PDOException $e) { jsonError('Failed to update database.', 500); }
-            } else {
-                jsonError('Failed to save file.');
-            }
-            break;
-
-        case 'forgot_password':
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $email = trim($body['email'] ?? '');
-            if (empty($email)) jsonError('Email is required.');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT id, name FROM users WHERE email = ? AND is_deleted = 0");
-                $stmt->execute([$email]);
-                $user = $stmt->fetch();
-                if ($user) {
-                    $token = bin2hex(random_bytes(32));
-                    $stmt = $db->prepare("UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?");
-                    $stmt->execute([$token, $user['id']]);
-                    logEmail($email, "Password Reset - ticktock", "Hi " . $user['name'] . ",\n\nUse this token to reset your password: $token\nIt expires in 1 hour.");
-                }
-                jsonOut(['success' => true, 'message' => 'If that email exists, a reset token has been generated. Check email.txt for simulation.']);
-            } catch (PDOException $e) { jsonError('Error processing request.', 500); }
-            break;
-
-        case 'reset_password':
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $token = $body['token'] ?? '';
-            $newPass = $body['password'] ?? '';
-            if (empty($token) || empty($newPass)) jsonError('Token and password required.');
-            if (strlen($newPass) < 8) jsonError('Min 8 characters required.');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT id FROM users WHERE reset_token = ? AND reset_expires > NOW() AND is_deleted = 0");
-                $stmt->execute([$token]);
-                $user = $stmt->fetch();
-                if (!$user) jsonError('Invalid or expired token.');
-                $hash = password_hash($newPass, PASSWORD_BCRYPT, ['cost' => 12]);
-                $stmt = $db->prepare("UPDATE users SET password_hash = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?");
-                $stmt->execute([$hash, $user['id']]);
-                jsonOut(['success' => true, 'message' => 'Password reset successfully. You can now login.']);
-            } catch (PDOException $e) { jsonError('Reset failed.', 500); }
-            break;
-
-        case 'change_password':
-            requireAuth();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $current = $body['current_password'] ?? '';
-            $newPass = $body['new_password'] ?? '';
-            $confirm = $body['confirm_password'] ?? '';
-            if (empty($current) || empty($newPass) || empty($confirm)) jsonError('All fields are required.');
-            if (strlen($newPass) < 8) jsonError('New password must be at least 8 characters.');
-            if (!preg_match('/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\\\/]/', $newPass)) jsonError('Password must contain at least one special character.');
-            if ($newPass !== $confirm) jsonError('Passwords do not match.');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT password_hash FROM users WHERE id = ?");
-                $stmt->execute([$_SESSION['user_id']]);
-                $user = $stmt->fetch();
-                if (!$user || !password_verify($current, $user['password_hash'])) jsonError('Current password is incorrect.');
-                $hash = password_hash($newPass, PASSWORD_BCRYPT, ['cost' => 12]);
-                $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$hash, $_SESSION['user_id']]);
-                jsonOut(['success' => true, 'message' => 'Password changed successfully.']);
-            } catch (PDOException $e) {
-                jsonError('Failed to change password.', 500);
-            }
-            break;
-
-        case 'reports':
-            requireAdmin();
-            $start = $_GET['start'] ?? date('Y-m-01');
-            $end = $_GET['end'] ?? date('Y-m-t');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT p.name as project_name, SUM(te.hours) as total_hours FROM timesheet_entries te JOIN projects p ON p.id = te.project_id WHERE te.date BETWEEN ? AND ? GROUP BY p.id ORDER BY total_hours DESC");
-                $stmt->execute([$start, $end]);
-                $projectStats = $stmt->fetchAll();
-
-                $stmt = $db->prepare("SELECT u.name as user_name, SUM(te.hours) as total_hours FROM timesheet_entries te JOIN users u ON u.id = te.user_id WHERE te.date BETWEEN ? AND ? GROUP BY u.id ORDER BY total_hours DESC");
-                $stmt->execute([$start, $end]);
-                $userStats = $stmt->fetchAll();
-
-                jsonOut(['success' => true, 'projects' => $projectStats, 'users' => $userStats]);
-            } catch (PDOException $e) { jsonError('Failed to load reports.', 500); }
-            break;
-
-        case 'export_csv':
-            requireAuth();
-            $userId = ($_SESSION['user_role'] === 'admin' && isset($_GET['user_id'])) ? (int)$_GET['user_id'] : $_SESSION['user_id'];
-            $start = $_GET['start'] ?? date('Y-01-01');
-            $end = $_GET['end'] ?? date('Y-12-31');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT te.date, p.name as project, wt.name as type, te.hours, te.description FROM timesheet_entries te JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE te.user_id = ? AND te.date BETWEEN ? AND ? ORDER BY te.date ASC");
-                $stmt->execute([$userId, $start, $end]);
-                $rows = $stmt->fetchAll();
-                
-                header('Content-Type: text/csv');
-                header('Content-Disposition: attachment; filename="timesheet_export_' . date('Ymd') . '.csv"');
-                $out = fopen('php://output', 'w');
-                fputcsv($out, ['Date', 'Project', 'Work Type', 'Hours', 'Description']);
-                foreach ($rows as $r) { fputcsv($out, $r); }
-                fclose($out);
-                exit;
-            } catch (PDOException $e) { jsonError('Export failed.', 500); }
-            break;
-
-        default:
-            jsonError('Unknown API endpoint.', 404);
-    }
-    exit;
+  switch ($api) {
+    case 'captcha':
+      cleanExpiredCaptchas();
+      $a = rand(1, 9);
+      $b = rand(1, 9);
+      $answer = $a + $b;
+      $question = "$a + $b = ?";
+      $token = bin2hex(random_bytes(16));
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('INSERT INTO captcha_store (token, answer, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))');
+        $stmt->execute([$token, (string) $answer]);
+      } catch (Exception $e) {
+        $token = '';
+      }
+      $imgB64 = generateCaptchaImage($answer, $question);
+      jsonOut(['token' => $token, 'image' => 'data:image/png;base64,' . $imgB64]);
+      break;
+    case 'login':
+      if ($_SERVER['REQUEST_METHOD'] !== 'POST')
+        jsonError('Method not allowed', 405);
+      checkRateLimit();
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $email = trim($body['email'] ?? '');
+      $password = $body['password'] ?? '';
+      $captchaToken = $body['captcha_token'] ?? '';
+      $captchaAnswer = trim($body['captcha_answer'] ?? '');
+      if (empty($email) || empty($password))
+        jsonError('Email and password are required.');
+      if (!filter_var($email, FILTER_VALIDATE_EMAIL))
+        jsonError('Invalid email format.');
+      if (strlen($password) < 8)
+        jsonError('Password must be at least 8 characters.');
+      if (empty($captchaToken) || empty($captchaAnswer))
+        jsonError('Please complete the CAPTCHA.');
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT answer FROM captcha_store WHERE token = ? AND expires_at > NOW()');
+        $stmt->execute([$captchaToken]);
+        $captchaRow = $stmt->fetch();
+        if (!$captchaRow)
+          jsonError('CAPTCHA expired. Please refresh and try again.');
+        if ((string) $captchaRow['answer'] !== $captchaAnswer) {
+          $db->prepare('DELETE FROM captcha_store WHERE token = ?')->execute([$captchaToken]);
+          jsonError('Incorrect CAPTCHA answer.');
+        }
+        $db->prepare('DELETE FROM captcha_store WHERE token = ?')->execute([$captchaToken]);
+        $stmt = $db->prepare('SELECT id, email, password_hash, name, role, is_approved FROM users WHERE email = ? AND is_active = 1 AND is_deleted = 0');
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+        if (!$user || !password_verify($password, $user['password_hash'])) {
+          jsonError('Invalid email or password.');
+        }
+        if ($user['is_approved'] == 0) {
+          jsonError('Your account is pending approval by an admin.');
+        }
+        $db->prepare('DELETE FROM login_attempts WHERE ip_address = ?')->execute([$_SERVER['REMOTE_ADDR'] ?? 'unknown']);
+        session_regenerate_id(true);
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_name'] = $user['name'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_role'] = $user['role'];
+        $_SESSION['last_activity'] = time();
+        $_SESSION['session_start'] = time();
+        csrfToken();
+        jsonOut(['success' => true, 'user' => ['id' => $user['id'], 'name' => $user['name'], 'email' => $user['email'], 'role' => $user['role']], 'csrf' => $_SESSION['csrf_token']]);
+      } catch (PDOException $e) {
+        jsonError('Login failed. Please try again.', 500);
+      }
+      break;
+    case 'register':
+      if ($_SERVER['REQUEST_METHOD'] !== 'POST')
+        jsonError('Method not allowed', 405);
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $name = sanitizeStr($body['name'] ?? '');
+      $email = trim($body['email'] ?? '');
+      $password = $body['password'] ?? '';
+      $confirm = $body['confirm_password'] ?? '';
+      $captchaToken = $body['captcha_token'] ?? '';
+      $captchaAnswer = trim($body['captcha_answer'] ?? '');
+      if (empty($name) || empty($email) || empty($password))
+        jsonError('All fields are required.');
+      if (!filter_var($email, FILTER_VALIDATE_EMAIL))
+        jsonError('Invalid email format.');
+      if (strlen($password) < 8)
+        jsonError('Password must be at least 8 characters.');
+      if ($password !== $confirm)
+        jsonError('Passwords do not match.');
+      if (empty($captchaToken) || empty($captchaAnswer))
+        jsonError('Please complete the CAPTCHA.');
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT answer FROM captcha_store WHERE token = ? AND expires_at > NOW()');
+        $stmt->execute([$captchaToken]);
+        $captchaRow = $stmt->fetch();
+        if (!$captchaRow)
+          jsonError('CAPTCHA expired.');
+        if ((string) $captchaRow['answer'] !== $captchaAnswer) {
+          $db->prepare('DELETE FROM captcha_store WHERE token = ?')->execute([$captchaToken]);
+          jsonError('Incorrect CAPTCHA answer.');
+        }
+        $db->prepare('DELETE FROM captcha_store WHERE token = ?')->execute([$captchaToken]);
+        $stmt = $db->prepare('SELECT id FROM users WHERE email = ?');
+        $stmt->execute([$email]);
+        if ($stmt->fetch())
+          jsonError('Email already registered.');
+        $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+        $stmt = $db->prepare("INSERT INTO users (name, email, password_hash, role, is_approved) VALUES (?, ?, ?, 'user', 0)");
+        $stmt->execute([$name, $email, $hash]);
+        jsonOut(['success' => true, 'message' => 'Registration successful! Your account is pending admin approval.']);
+      } catch (PDOException $e) {
+        jsonError('Registration failed.', 500);
+      }
+      break;
+    case 'logout':
+      session_destroy();
+      jsonOut(['success' => true]);
+      break;
+    case 'me':
+      if (empty($_SESSION['user_id'])) {
+        jsonOut(['success' => false, 'error' => 'Unauthenticated'], 200);
+      }
+      requireAuth();
+      jsonOut(['success' => true, 'user' => ['id' => $_SESSION['user_id'], 'name' => $_SESSION['user_name'], 'email' => $_SESSION['user_email'], 'role' => $_SESSION['user_role']], 'csrf' => csrfToken()]);
+      break;
+    case 'timesheets':
+      requireAuth();
+      $userId = (int) $_SESSION['user_id'];
+      $startDate = $_GET['start'] ?? date('Y-01-01');
+      $endDate = $_GET['end'] ?? date('Y-12-31');
+      if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+        jsonError('Invalid date format.');
+      }
+      try {
+        $db = getDB();
+        $uStmt = $db->prepare('SELECT standard_hours FROM users WHERE id = ?');
+        $uStmt->execute([$userId]);
+        $stdHours = (float) ($uStmt->fetchColumn() ?: 40.0);
+        $stmt = $db->prepare('SELECT date, SUM(hours) as total_hours FROM timesheet_entries WHERE user_id = ? AND date BETWEEN ? AND ? GROUP BY date');
+        $stmt->execute([$userId, $startDate, $endDate]);
+        $entriesByDate = [];
+        while ($row = $stmt->fetch()) {
+          $entriesByDate[$row['date']] = (float) $row['total_hours'];
+        }
+        $sStmt = $db->prepare('SELECT year, week, status, rejection_reason FROM timesheet_submissions WHERE user_id = ?');
+        $sStmt->execute([$userId]);
+        $subs = [];
+        while ($srow = $sStmt->fetch()) {
+          $subs[$srow['year'] . '-' . $srow['week']] = [
+            'status' => $srow['status'],
+            'reason' => $srow['rejection_reason']
+          ];
+        }
+        $weeks = getWeeksInRange($startDate, $endDate);
+        $result = [];
+        $weekNum = 1;
+        foreach ($weeks as $w) {
+          $totalHours = 0.0;
+          $d = new DateTime($w['start']);
+          $dEnd = new DateTime($w['end']);
+          while ($d <= $dEnd) {
+            $ds = $d->format('Y-m-d');
+            $totalHours += $entriesByDate[$ds] ?? 0.0;
+            $d->modify('+1 day');
+          }
+          $subInfo = $subs[$w['year'] . '-' . $w['week']] ?? null;
+          $status = 'missing';
+          $reason = '';
+          if ($subInfo) {
+            $status = $subInfo['status'];
+            $reason = $subInfo['reason'];
+          } elseif ($totalHours >= $stdHours)
+            $status = 'completed';
+          elseif ($totalHours > 0)
+            $status = 'incomplete';
+          $startDt = new DateTime($w['start']);
+          $endDt = new DateTime($w['end']);
+          $dateLabel = $startDt->format('j') . ' - ' . $endDt->format('j F, Y');
+          $result[] = [
+            'week_num' => $weekNum++,
+            'year' => $w['year'],
+            'week' => $w['week'],
+            'date_start' => $w['start'],
+            'date_end' => $w['end'],
+            'date_label' => $dateLabel,
+            'total_hours' => $totalHours,
+            'std_hours' => $stdHours,
+            'status' => $status,
+            'rejection_reason' => $reason
+          ];
+        }
+        jsonOut(['success' => true, 'timesheets' => $result]);
+      } catch (PDOException $e) {
+        jsonError('Failed to load timesheets.', 500);
+      }
+      break;
+    case 'week_entries':
+      requireAuth();
+      $userId = (int) $_SESSION['user_id'];
+      $startDate = $_GET['start'] ?? '';
+      $endDate = $_GET['end'] ?? '';
+      if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+        jsonError('Invalid date format.');
+      }
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT te.id, te.date, te.description, te.hours, p.name as project_name, p.id as project_id, wt.name as work_type_name, wt.id as work_type_id FROM timesheet_entries te JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE te.user_id = ? AND te.date BETWEEN ? AND ? ORDER BY te.date ASC, te.id ASC');
+        $stmt->execute([$userId, $startDate, $endDate]);
+        $entries = $stmt->fetchAll();
+        $totalHours = array_sum(array_column($entries, 'hours'));
+        jsonOut(['success' => true, 'entries' => $entries, 'total_hours' => (float) $totalHours, 'start' => $startDate, 'end' => $endDate]);
+      } catch (PDOException $e) {
+        jsonError('Failed to load entries.', 500);
+      }
+      break;
+    case 'entry':
+      requireAuth();
+      $userId = (int) $_SESSION['user_id'];
+      if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        verifyCsrf();
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $id = isset($body['id']) ? (int) $body['id'] : 0;
+        $date = sanitizeStr($body['date'] ?? '');
+        $projectId = (int) ($body['project_id'] ?? 0);
+        $workTypeId = (int) ($body['work_type_id'] ?? 0);
+        $description = sanitizeStr($body['description'] ?? '');
+        $hours = round((float) ($body['hours'] ?? 0), 2);
+        if (empty($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date))
+          jsonError('Invalid date.');
+        if ($projectId <= 0)
+          jsonError('Please select a project.');
+        if ($workTypeId <= 0)
+          jsonError('Please select a work type.');
+        if (empty($description))
+          jsonError('Task description is required.');
+        if ($hours <= 0 || $hours > 24)
+          jsonError('Hours must be between 0.5 and 24.');
+        try {
+          $db = getDB();
+          $dt = new DateTime($date);
+          $year = (int) $dt->format('o');
+          $week = (int) $dt->format('W');
+          $sStmt = $db->prepare('SELECT status FROM timesheet_submissions WHERE user_id = ? AND year = ? AND week = ?');
+          $sStmt->execute([$userId, $year, $week]);
+          $subStatus = $sStmt->fetchColumn();
+          if ($subStatus === 'pending' || $subStatus === 'approved') {
+            jsonError('This week is ' . $subStatus . ' and locked for editing.');
+          }
+          $stmt = $db->prepare('SELECT id FROM projects WHERE id = ? AND is_active = 1');
+          $stmt->execute([$projectId]);
+          if (!$stmt->fetch())
+            jsonError('Invalid project.');
+          $stmt = $db->prepare('SELECT id FROM work_types WHERE id = ? AND is_active = 1');
+          $stmt->execute([$workTypeId]);
+          if (!$stmt->fetch())
+            jsonError('Invalid work type.');
+          if ($id > 0) {
+            $stmt = $db->prepare('SELECT id FROM timesheet_entries WHERE id = ? AND user_id = ?');
+            $stmt->execute([$id, $userId]);
+            if (!$stmt->fetch())
+              jsonError('Entry not found or access denied.', 403);
+            $stmt = $db->prepare('UPDATE timesheet_entries SET date=?, project_id=?, work_type_id=?, description=?, hours=? WHERE id=? AND user_id=?');
+            $stmt->execute([$date, $projectId, $workTypeId, $description, $hours, $id, $userId]);
+            jsonOut(['success' => true, 'message' => 'Entry updated successfully.']);
+          } else {
+            $stmt = $db->prepare('INSERT INTO timesheet_entries (user_id, date, project_id, work_type_id, description, hours) VALUES (?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$userId, $date, $projectId, $workTypeId, $description, $hours]);
+            jsonOut(['success' => true, 'message' => 'Entry added successfully.', 'id' => (int) $db->lastInsertId()]);
+          }
+        } catch (PDOException $e) {
+          jsonError('Failed to save entry.', 500);
+        }
+      } elseif ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        verifyCsrf();
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $id = (int) ($body['id'] ?? 0);
+        if ($id <= 0)
+          jsonError('Invalid entry ID.');
+        try {
+          $db = getDB();
+          $stmt = $db->prepare('SELECT date FROM timesheet_entries WHERE id = ? AND user_id = ?');
+          $stmt->execute([$id, $userId]);
+          $entryDate = $stmt->fetchColumn();
+          if (!$entryDate)
+            jsonError('Entry not found or access denied.', 403);
+          $dt = new DateTime($entryDate);
+          $year = (int) $dt->format('o');
+          $week = (int) $dt->format('W');
+          $sStmt = $db->prepare('SELECT status FROM timesheet_submissions WHERE user_id = ? AND year = ? AND week = ?');
+          $sStmt->execute([$userId, $year, $week]);
+          $subStatus = $sStmt->fetchColumn();
+          if ($subStatus === 'pending' || $subStatus === 'approved') {
+            jsonError('This week is ' . $subStatus . ' and locked.');
+          }
+          $db->prepare('DELETE FROM timesheet_entries WHERE id = ? AND user_id = ?')->execute([$id, $userId]);
+          jsonOut(['success' => true, 'message' => 'Entry deleted.']);
+        } catch (PDOException $e) {
+          jsonError('Failed to delete entry.', 500);
+        }
+      } else {
+        jsonError('Method not allowed.', 405);
+      }
+      break;
+    case 'projects':
+      requireAuth();
+      try {
+        $db = getDB();
+        $where = ($_SESSION['user_role'] === 'admin') ? '' : ' WHERE is_active = 1';
+        $projects = $db->query("SELECT id, name, is_active FROM projects $where ORDER BY name ASC")->fetchAll();
+        jsonOut(['success' => true, 'projects' => $projects]);
+      } catch (PDOException $e) {
+        jsonError('Failed to load projects.', 500);
+      }
+      break;
+    case 'admin_project_save':
+      requireAdmin();
+      verifyCsrf();
+      if ($_SERVER['REQUEST_METHOD'] !== 'POST')
+        jsonError('Method not allowed', 405);
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $id = (int) ($body['id'] ?? 0);
+      $name = sanitizeStr($body['name'] ?? '');
+      $isActive = isset($body['is_active']) ? (int) $body['is_active'] : 1;
+      if (empty($name))
+        jsonError('Project name is required.');
+      try {
+        $db = getDB();
+        if ($id > 0) {
+          $stmt = $db->prepare('UPDATE projects SET name = ?, is_active = ? WHERE id = ?');
+          $stmt->execute([$name, $isActive, $id]);
+          jsonOut(['success' => true, 'message' => 'Project updated successfully.']);
+        } else {
+          $stmt = $db->prepare('INSERT INTO projects (name, is_active) VALUES (?, ?)');
+          $stmt->execute([$name, $isActive]);
+          jsonOut(['success' => true, 'message' => 'Project added successfully.', 'id' => (int) $db->lastInsertId()]);
+        }
+      } catch (PDOException $e) {
+        jsonError('Failed to save project.', 500);
+      }
+      break;
+    case 'work_types':
+      requireAuth();
+      try {
+        $db = getDB();
+        $where = ($_SESSION['user_role'] === 'admin') ? '' : ' WHERE is_active = 1';
+        $types = $db->query("SELECT id, name, is_active FROM work_types $where ORDER BY name ASC")->fetchAll();
+        jsonOut(['success' => true, 'work_types' => $types]);
+      } catch (PDOException $e) {
+        jsonError('Failed to load work types.', 500);
+      }
+      break;
+    case 'admin_work_type_save':
+      requireAdmin();
+      verifyCsrf();
+      if ($_SERVER['REQUEST_METHOD'] !== 'POST')
+        jsonError('Method not allowed', 405);
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $id = (int) ($body['id'] ?? 0);
+      $name = sanitizeStr($body['name'] ?? '');
+      $isActive = isset($body['is_active']) ? (int) $body['is_active'] : 1;
+      if (empty($name))
+        jsonError('Work type name is required.');
+      try {
+        $db = getDB();
+        if ($id > 0) {
+          $stmt = $db->prepare('UPDATE work_types SET name = ?, is_active = ? WHERE id = ?');
+          $stmt->execute([$name, $isActive, $id]);
+          jsonOut(['success' => true, 'message' => 'Work type updated successfully.']);
+        } else {
+          $stmt = $db->prepare('INSERT INTO work_types (name, is_active) VALUES (?, ?)');
+          $stmt->execute([$name, $isActive]);
+          jsonOut(['success' => true, 'message' => 'Work type added successfully.', 'id' => (int) $db->lastInsertId()]);
+        }
+      } catch (PDOException $e) {
+        jsonError('Failed to save work type.', 500);
+      }
+      break;
+    case 'admin_users':
+      requireAdmin();
+      try {
+        $db = getDB();
+        $users = $db->query('SELECT id, name, email, role, standard_hours, is_approved, is_active, created_at FROM users WHERE is_deleted = 0 ORDER BY created_at DESC')->fetchAll();
+        jsonOut(['success' => true, 'users' => $users]);
+      } catch (PDOException $e) {
+        jsonError('Failed to load users.', 500);
+      }
+      break;
+    case 'admin_user_update':
+      requireAdmin();
+      verifyCsrf();
+      if ($_SERVER['REQUEST_METHOD'] !== 'POST')
+        jsonError('Method not allowed', 405);
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $id = (int) ($body['id'] ?? 0);
+      $role = sanitizeStr($body['role'] ?? 'user');
+      $isApproved = isset($body['is_approved']) ? (int) $body['is_approved'] : 0;
+      $isActive = isset($body['is_active']) ? (int) $body['is_active'] : 1;
+      $standardHours = isset($body['standard_hours']) ? round((float) $body['standard_hours'], 2) : 40.0;
+      if ($id <= 0)
+        jsonError('Invalid user ID.');
+      if (!in_array($role, ['admin', 'user']))
+        jsonError('Invalid role.');
+      if ($standardHours < 0 || $standardHours > 168)
+        jsonError('Invalid standard hours.');
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('UPDATE users SET role = ?, is_approved = ?, is_active = ?, standard_hours = ? WHERE id = ?');
+        $stmt->execute([$role, $isApproved, $isActive, $standardHours, $id]);
+        jsonOut(['success' => true, 'message' => 'User updated successfully.']);
+      } catch (PDOException $e) {
+        jsonError('Failed to update user.', 500);
+      }
+      break;
+    case 'admin_user_delete':
+      requireAdmin();
+      verifyCsrf();
+      if ($_SERVER['REQUEST_METHOD'] !== 'DELETE')
+        jsonError('Method not allowed', 405);
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $id = (int) ($body['id'] ?? 0);
+      if ($id <= 0)
+        jsonError('Invalid user ID.');
+      if ($id == $_SESSION['user_id'])
+        jsonError('You cannot delete yourself.');
+      try {
+        $db = getDB();
+        $db->prepare('UPDATE users SET is_deleted = 1, is_active = 0 WHERE id = ?')->execute([$id]);
+        jsonOut(['success' => true, 'message' => 'User account deactivated (Soft Delete).']);
+      } catch (PDOException $e) {
+        jsonError('Failed to delete user.', 500);
+      }
+      break;
+    case 'submit_week':
+      requireAuth();
+      verifyCsrf();
+      if ($_SERVER['REQUEST_METHOD'] !== 'POST')
+        jsonError('Method not allowed', 405);
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $year = (int) ($body['year'] ?? 0);
+      $week = (int) ($body['week'] ?? 0);
+      $userId = $_SESSION['user_id'];
+      if ($year <= 0 || $week <= 0)
+        jsonError('Invalid year/week.');
+      try {
+        $db = getDB();
+        $range = getWeekRange($year, $week);
+        $stmt = $db->prepare('SELECT COUNT(*) FROM timesheet_entries WHERE user_id = ? AND date BETWEEN ? AND ?');
+        $stmt->execute([$userId, $range['start'], $range['end']]);
+        if ($stmt->fetchColumn() == 0)
+          jsonError('No entries found for this week. Cannot submit empty timesheet.');
+        $stmt = $db->prepare("INSERT INTO timesheet_submissions (user_id, year, week, status) VALUES (?, ?, ?, 'pending') ON DUPLICATE KEY UPDATE status = 'pending', reviewed_at = NULL, reviewed_by = NULL");
+        $stmt->execute([$userId, $year, $week]);
+        $submissionId = $db->lastInsertId() ?: $db->query("SELECT id FROM timesheet_submissions WHERE user_id=$userId AND year=$year AND week=$week")->fetchColumn();
+        $db->prepare('UPDATE timesheet_entries SET submission_id = ? WHERE user_id = ? AND date BETWEEN ? AND ?')->execute([$submissionId, $userId, $range['start'], $range['end']]);
+        jsonOut(['success' => true, 'message' => 'Timesheet submitted for approval.']);
+      } catch (PDOException $e) {
+        jsonError('Submission failed.', 500);
+      }
+      break;
+    case 'admin_submissions':
+      requireAdmin();
+      try {
+        $db = getDB();
+        $subs = $db->query("SELECT ts.*, u.name as user_name, u.email as user_email FROM timesheet_submissions ts JOIN users u ON u.id = ts.user_id WHERE ts.status = 'pending' ORDER BY ts.submitted_at DESC")->fetchAll();
+        jsonOut(['success' => true, 'submissions' => $subs]);
+      } catch (PDOException $e) {
+        jsonError('Failed to load submissions.', 500);
+      }
+      break;
+    case 'admin_submission_entries':
+      requireAdmin();
+      $subId = (int) ($_GET['id'] ?? 0);
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT te.date, te.description, te.hours, p.name as project_name, wt.name as work_type_name FROM timesheet_entries te JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE te.submission_id = ? ORDER BY te.date ASC');
+        $stmt->execute([$subId]);
+        $entries = $stmt->fetchAll();
+        jsonOut(['success' => true, 'entries' => $entries]);
+      } catch (PDOException $e) {
+        jsonError('Failed to load entries.', 500);
+      }
+      break;
+    case 'admin_submission_review':
+      requireAdmin();
+      verifyCsrf();
+      if ($_SERVER['REQUEST_METHOD'] !== 'POST')
+        jsonError('Method not allowed', 405);
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $id = (int) ($body['id'] ?? 0);
+      $status = sanitizeStr($body['status'] ?? '');
+      $reason = sanitizeStr($body['reason'] ?? '');
+      if (!in_array($status, ['approved', 'rejected']))
+        jsonError('Invalid status.');
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('UPDATE timesheet_submissions SET status = ?, rejection_reason = ?, reviewed_at = NOW(), reviewed_by = ? WHERE id = ?');
+        $stmt->execute([$status, ($status === 'rejected' ? $reason : null), $_SESSION['user_id'], $id]);
+        jsonOut(['success' => true, 'message' => 'Submission ' . $status . '.']);
+      } catch (PDOException $e) {
+        jsonError('Failed to review submission.', 500);
+      }
+      break;
+    case 'update_profile':
+      requireAuth();
+      verifyCsrf();
+      if ($_SERVER['REQUEST_METHOD'] !== 'POST')
+        jsonError('Method not allowed', 405);
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $name = sanitizeStr($body['name'] ?? '');
+      $email = trim($body['email'] ?? '');
+      if (empty($name) || empty($email))
+        jsonError('Name and email are required.');
+      if (!filter_var($email, FILTER_VALIDATE_EMAIL))
+        jsonError('Invalid email.');
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT id FROM users WHERE email = ? AND id != ?');
+        $stmt->execute([$email, $_SESSION['user_id']]);
+        if ($stmt->fetch())
+          jsonError('Email already in use.');
+        $stmt = $db->prepare('UPDATE users SET name = ?, email = ? WHERE id = ?');
+        $stmt->execute([$name, $email, $_SESSION['user_id']]);
+        $_SESSION['user_name'] = $name;
+        $_SESSION['user_email'] = $email;
+        jsonOut(['success' => true, 'message' => 'Profile updated.']);
+      } catch (PDOException $e) {
+        jsonError('Failed to update profile.', 500);
+      }
+      break;
+    case 'upload_avatar':
+      requireAuth();
+      if ($_SERVER['REQUEST_METHOD'] !== 'POST')
+        jsonError('Method not allowed', 405);
+      if (!isset($_FILES['avatar']))
+        jsonError('No file uploaded.');
+      $file = $_FILES['avatar'];
+      if ($file['error'] !== UPLOAD_ERR_OK)
+        jsonError('Upload failed.');
+      $allowed = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!in_array($file['type'], $allowed))
+        jsonError('Invalid file type. Only JPG, PNG, and WebP allowed.');
+      if ($file['size'] > 2 * 1024 * 1024)
+        jsonError('File too large. Max 2MB.');
+      $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+      $filename = 'avatar_' . $_SESSION['user_id'] . '_' . time() . '.' . $ext;
+      $uploadDir = 'uploads/avatars/';
+      if (!is_dir($uploadDir))
+        mkdir($uploadDir, 0755, true);
+      $path = $uploadDir . $filename;
+      if (move_uploaded_file($file['tmp_name'], $path)) {
+        try {
+          $db = getDB();
+          $db->prepare('UPDATE users SET avatar_url = ? WHERE id = ?')->execute([$path, $_SESSION['user_id']]);
+          jsonOut(['success' => true, 'avatar_url' => $path]);
+        } catch (PDOException $e) {
+          jsonError('Failed to update database.', 500);
+        }
+      } else {
+        jsonError('Failed to save file.');
+      }
+      break;
+    case 'forgot_password':
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $email = trim($body['email'] ?? '');
+      if (empty($email))
+        jsonError('Email is required.');
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT id, name FROM users WHERE email = ? AND is_deleted = 0');
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+        if ($user) {
+          $token = bin2hex(random_bytes(32));
+          $stmt = $db->prepare('UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?');
+          $stmt->execute([$token, $user['id']]);
+          logEmail($email, 'Password Reset - ticktock', 'Hi ' . $user['name'] . ",\n\nUse this token to reset your password: $token\nIt expires in 1 hour.");
+        }
+        jsonOut(['success' => true, 'message' => 'If that email exists, a reset token has been generated. Check email.txt for simulation.']);
+      } catch (PDOException $e) {
+        jsonError('Error processing request.', 500);
+      }
+      break;
+    case 'reset_password':
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $token = $body['token'] ?? '';
+      $newPass = $body['password'] ?? '';
+      if (empty($token) || empty($newPass))
+        jsonError('Token and password required.');
+      if (strlen($newPass) < 8)
+        jsonError('Min 8 characters required.');
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT id FROM users WHERE reset_token = ? AND reset_expires > NOW() AND is_deleted = 0');
+        $stmt->execute([$token]);
+        $user = $stmt->fetch();
+        if (!$user)
+          jsonError('Invalid or expired token.');
+        $hash = password_hash($newPass, PASSWORD_BCRYPT, ['cost' => 12]);
+        $stmt = $db->prepare('UPDATE users SET password_hash = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?');
+        $stmt->execute([$hash, $user['id']]);
+        jsonOut(['success' => true, 'message' => 'Password reset successfully. You can now login.']);
+      } catch (PDOException $e) {
+        jsonError('Reset failed.', 500);
+      }
+      break;
+    case 'change_password':
+      requireAuth();
+      verifyCsrf();
+      if ($_SERVER['REQUEST_METHOD'] !== 'POST')
+        jsonError('Method not allowed', 405);
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $current = $body['current_password'] ?? '';
+      $newPass = $body['new_password'] ?? '';
+      $confirm = $body['confirm_password'] ?? '';
+      if (empty($current) || empty($newPass) || empty($confirm))
+        jsonError('All fields are required.');
+      if (strlen($newPass) < 8)
+        jsonError('New password must be at least 8 characters.');
+      if (!preg_match('/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\\\\/]/', $newPass))
+        jsonError('Password must contain at least one special character.');
+      if ($newPass !== $confirm)
+        jsonError('Passwords do not match.');
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT password_hash FROM users WHERE id = ?');
+        $stmt->execute([$_SESSION['user_id']]);
+        $user = $stmt->fetch();
+        if (!$user || !password_verify($current, $user['password_hash']))
+          jsonError('Current password is incorrect.');
+        $hash = password_hash($newPass, PASSWORD_BCRYPT, ['cost' => 12]);
+        $db->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([$hash, $_SESSION['user_id']]);
+        jsonOut(['success' => true, 'message' => 'Password changed successfully.']);
+      } catch (PDOException $e) {
+        jsonError('Failed to change password.', 500);
+      }
+      break;
+    case 'reports':
+      requireAdmin();
+      $start = $_GET['start'] ?? date('Y-m-01');
+      $end = $_GET['end'] ?? date('Y-m-t');
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT p.name as project_name, SUM(te.hours) as total_hours FROM timesheet_entries te JOIN projects p ON p.id = te.project_id WHERE te.date BETWEEN ? AND ? GROUP BY p.id ORDER BY total_hours DESC');
+        $stmt->execute([$start, $end]);
+        $projectStats = $stmt->fetchAll();
+        $stmt = $db->prepare('SELECT u.name as user_name, SUM(te.hours) as total_hours FROM timesheet_entries te JOIN users u ON u.id = te.user_id WHERE te.date BETWEEN ? AND ? GROUP BY u.id ORDER BY total_hours DESC');
+        $stmt->execute([$start, $end]);
+        $userStats = $stmt->fetchAll();
+        jsonOut(['success' => true, 'projects' => $projectStats, 'users' => $userStats]);
+      } catch (PDOException $e) {
+        jsonError('Failed to load reports.', 500);
+      }
+      break;
+    case 'export_csv':
+      requireAuth();
+      $userId = ($_SESSION['user_role'] === 'admin' && isset($_GET['user_id'])) ? (int) $_GET['user_id'] : $_SESSION['user_id'];
+      $start = $_GET['start'] ?? date('Y-01-01');
+      $end = $_GET['end'] ?? date('Y-12-31');
+      try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT te.date, p.name as project, wt.name as type, te.hours, te.description FROM timesheet_entries te JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE te.user_id = ? AND te.date BETWEEN ? AND ? ORDER BY te.date ASC');
+        $stmt->execute([$userId, $start, $end]);
+        $rows = $stmt->fetchAll();
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="timesheet_export_' . date('Ymd') . '.csv"');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Date', 'Project', 'Work Type', 'Hours', 'Description']);
+        foreach ($rows as $r) {
+          fputcsv($out, $r);
+        }
+        fclose($out);
+        exit;
+      } catch (PDOException $e) {
+        jsonError('Export failed.', 500);
+      }
+      break;
+    default:
+      jsonError('Unknown API endpoint.', 404);
+  }
+  exit;
 }
-
 $isLoggedIn = !empty($_SESSION['user_id']);
 $csrf = csrfToken();
 ?><!DOCTYPE html>
@@ -870,7 +912,6 @@ a{color:var(--blue);text-decoration:none}
 a:hover{text-decoration:underline}
 button{font-family:var(--font);cursor:pointer;border:none;outline:none}
 input,select,textarea{font-family:var(--font)}
-
 #app-login{display:none;min-height:100vh;align-items:stretch}
 #app-login.active{display:flex}
 .login-left{flex:0 0 45%;background:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:3rem 4rem;min-height:100vh}
@@ -906,7 +947,6 @@ input,select,textarea{font-family:var(--font)}
 .captcha-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
 .field-error{font-size:.75rem;color:var(--red);margin-top:.35rem;display:none}
 .field-error.visible{display:block}
-
 #app-main{display:none}
 #app-main.active{display:block}
 .topbar{background:#fff;border-bottom:1px solid var(--border);height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 2rem;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-sm)}
@@ -924,10 +964,8 @@ input,select,textarea{font-family:var(--font)}
 .user-dropdown-item.danger{color:var(--red)}
 .user-dropdown-divider{height:1px;background:var(--border);margin:.35rem 0}
 @keyframes fadeInDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-
 .page{display:none;padding:2rem;max-width:1100px;margin:0 auto}
 .page.active{display:block}
-
 .page-title{font-size:1.6rem;font-weight:700;color:var(--text-primary);margin-bottom:1.5rem}
 .filters-bar{display:flex;align-items:center;gap:.75rem;margin-bottom:1.5rem;flex-wrap:wrap}
 .filter-select{padding:.6rem 1rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.8rem;color:var(--text-primary);background:#fff;min-width:140px;cursor:pointer}
@@ -935,7 +973,6 @@ input,select,textarea{font-family:var(--font)}
 .filter-date-btn{display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.8rem;color:var(--text-primary);background:#fff;cursor:pointer;min-width:180px;transition:border-color .2s}
 .filter-date-btn:hover{border-color:var(--blue)}
 .filter-date-btn svg{width:14px;height:14px;color:var(--text-secondary)}
-
 .card{background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:var(--shadow-sm);overflow:hidden}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse}
@@ -949,15 +986,12 @@ tbody tr{border-bottom:1px solid var(--border-light);transition:background .15s}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:#FAFBFF}
 tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);vertical-align:middle}
-
 .badge{display:inline-flex;align-items:center;padding:.25rem .75rem;border-radius:999px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .badge-completed{background:var(--green-bg);color:var(--green)}
 .badge-incomplete{background:var(--yellow-bg);color:var(--yellow)}
 .badge-missing{background:var(--pink-bg);color:var(--pink)}
-
 .action-link{color:var(--blue);font-size:.8rem;font-weight:600;cursor:pointer;background:none;border:none;padding:.25rem .5rem;border-radius:var(--radius-sm);transition:background .15s;display:inline}
 .action-link:hover{background:var(--blue-light)}
-
 .pagination{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-top:1px solid var(--border);flex-wrap:wrap;gap:.5rem}
 .per-page{display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--text-secondary)}
 .per-page select{padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.8rem}
@@ -967,7 +1001,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 .page-btn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
 .page-btn:disabled{opacity:.4;cursor:not-allowed}
 .page-btn.dots{cursor:default;pointer-events:none}
-
 .detail-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.75rem;flex-wrap:wrap;gap:1rem}
 .detail-title{font-size:1.6rem;font-weight:700;color:var(--text-primary)}
 .detail-range{font-size:.9rem;color:var(--text-secondary);margin-top:.25rem}
@@ -976,7 +1009,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 .progress-bar-outer{width:200px;height:8px;background:var(--border);border-radius:999px;overflow:hidden}
 .progress-bar-inner{height:100%;background:var(--blue);border-radius:999px;transition:width .5s ease}
 .progress-bar-inner.complete{background:var(--green)}
-
 .day-group{margin-bottom:1.25rem}
 .day-label{font-size:.8rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;padding:.75rem 1.25rem;border-bottom:1px solid var(--border-light);background:#FAFAFA}
 .entry-row{display:flex;align-items:center;padding:.875rem 1.25rem;border-bottom:1px solid var(--border-light);gap:1rem;transition:background .15s}
@@ -998,7 +1030,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 .btn-add-task:hover{background:var(--blue-light)}
 .btn-back{display:flex;align-items:center;gap:.4rem;color:var(--text-secondary);font-size:.8rem;font-weight:500;background:none;border:none;cursor:pointer;padding:.4rem .5rem;border-radius:var(--radius-sm);transition:all .15s;margin-bottom:1.25rem}
 .btn-back:hover{color:var(--blue);background:var(--blue-light)}
-
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(2px)}
 .modal-overlay.open{display:flex}
 .modal-box{background:#fff;border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);width:100%;max-width:480px;overflow:hidden}
@@ -1016,27 +1047,22 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 .stepper-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-light)}
 #modal-hours{width:70px;text-align:center;padding:.6rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.9rem;font-weight:600}
 #modal-hours:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
-
 .cp-modal-overlay{display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(2px)}
 .cp-modal-overlay.open{display:flex}
 .cp-modal-box{background:#fff;border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);width:100%;max-width:420px;overflow:hidden}
-
 .footer-bar{text-align:center;padding:2rem 1rem 1.25rem;color:var(--text-muted);font-size:.78rem}
 .footer-bar a{color:var(--blue)}
 .print-footer{display:none}
-
 .loading-spinner{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:.4rem}
 @keyframes spin{to{transform:rotate(360deg)}}
 .skeleton{background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:var(--radius-sm)}
 @keyframes shimmer{to{background-position:-200% 0}}
 .skeleton-row td{padding:.875rem 1.25rem}
 .skeleton-cell{height:14px}
-
 .empty-state{text-align:center;padding:3rem 1rem;color:var(--text-secondary)}
 .empty-icon{font-size:2.5rem;margin-bottom:.75rem;opacity:.5}
 .empty-state h3{font-size:1rem;font-weight:600;color:var(--text-primary);margin-bottom:.35rem}
 .empty-state p{font-size:.875rem}
-
 @media(max-width:900px){
   .login-right{display:none}
   .login-left{flex:1;padding:2.5rem 2rem;min-height:100vh}
@@ -1066,7 +1092,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 </style>
 </head>
 <body>
-
 <div id="app-login">
   <div class="login-left">
     <form class="login-form-wrap animate__animated animate__fadeInUp" id="login-form-wrap" onsubmit="event.preventDefault();">
@@ -1101,7 +1126,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
         Don't have an account? <button type="button" class="btn-ghost" id="btn-show-register">Register here</button>
       </div>
     </form>
-
     <div class="login-form-wrap animate__animated animate__fadeInUp" id="register-wrap" style="display:none">
       <h2>Create account</h2>
       <p>Join ticktock to manage your timesheets</p>
@@ -1144,7 +1168,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     <p class="login-brand-tagline animate__animated animate__fadeIn animate__delay-1s">Introducing ticktock, our cutting-edge timesheet web application designed to revolutionize how you manage employee work hours. With ticktock, you can effortlessly track and monitor employee attendance and productivity from anywhere, anytime, using any internet-connected device.</p>
   </div>
 </div>
-
 <div id="app-main">
   <header class="topbar">
     <div class="topbar-left">
@@ -1196,7 +1219,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       </div>
     </div>
   </header>
-
   <div id="page-admin" class="page">
     <button class="btn-back" id="btn-back-from-admin">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1221,7 +1243,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       </div>
     </div>
   </div>
-
   <div id="page-timesheets" class="page active">
     <div class="page-title animate__animated animate__fadeIn">Your Timesheets</div>
     <div class="filters-bar">
@@ -1273,7 +1294,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       WhatsApp: <a href="https://wa.me/923361593533">03361593533</a>
     </div>
   </div>
-
   <div id="page-detail" class="page">
     <button class="btn-back" id="btn-back-to-list">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1306,7 +1326,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       Created by: Yasin Ullah – Bannu Software Solutions | www.yasinbss.com | WhatsApp: 03361593533
     </div>
   </div>
-
   <div id="page-admin-projects" class="page">
     <button class="btn-back btn-back-to-admin">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1325,7 +1344,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       </div>
     </div>
   </div>
-
   <div id="page-admin-work-types" class="page">
     <button class="btn-back btn-back-to-admin">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1344,7 +1362,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       </div>
     </div>
   </div>
-
   <div id="page-admin-submissions" class="page">
     <button class="btn-back btn-back-to-admin">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1360,7 +1377,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       </div>
     </div>
   </div>
-
   <div id="page-admin-reports" class="page">
     <button class="btn-back btn-back-to-admin">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1387,7 +1403,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
         </div>
     </div>
   </div>
-
   <div id="page-profile" class="page">
     <button class="btn-back" id="btn-back-from-profile">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1414,7 +1429,20 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     </div>
   </div>
 </div>
-
+<div class="modal-overlay" id="admin-view-modal">
+  <div class="modal-box animate__animated animate__zoomIn animate__faster" style="max-width:700px">
+    <div class="modal-header"><span class="modal-title" id="av-modal-title">Submission Details</span><button class="modal-close av-modal-close">&times;</button></div>
+    <div class="modal-body" style="max-height:60vh;overflow-y:auto;padding:0">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>DATE</th><th>PROJECT</th><th>WORK TYPE</th><th>HOURS</th><th>DESCRIPTION</th></tr></thead>
+          <tbody id="av-modal-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn-outline av-modal-close">Close</button></div>
+  </div>
+</div>
 <div class="modal-overlay" id="project-modal">
   <div class="modal-box animate__animated animate__zoomIn animate__faster">
     <div class="modal-header"><span class="modal-title" id="pmodal-title">Add Project</span><button class="modal-close pmodal-close">&times;</button></div>
@@ -1426,7 +1454,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     <div class="modal-footer"><button class="btn-outline pmodal-close">Cancel</button><button class="btn-primary" id="btn-pmodal-save">Save Project</button></div>
   </div>
 </div>
-
 <div class="modal-overlay" id="work-type-modal">
   <div class="modal-box animate__animated animate__zoomIn animate__faster">
     <div class="modal-header"><span class="modal-title" id="wtmodal-title">Add Work Type</span><button class="modal-close wtmodal-close">&times;</button></div>
@@ -1438,7 +1465,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     <div class="modal-footer"><button class="btn-outline wtmodal-close">Cancel</button><button class="btn-primary" id="btn-wtmodal-save">Save Type</button></div>
   </div>
 </div>
-
 <div class="cp-modal-overlay" id="forgot-modal">
   <div class="cp-modal-box animate__animated animate__zoomIn animate__faster">
     <div class="modal-header"><span class="modal-title">Forgot Password</span><button class="modal-close fmodal-close">&times;</button></div>
@@ -1449,7 +1475,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     <div class="modal-footer"><button class="btn-outline fmodal-close">Cancel</button><button class="btn-primary" id="btn-f-submit">Get Token</button></div>
   </div>
 </div>
-
 <div class="cp-modal-overlay" id="reset-modal">
   <div class="cp-modal-box animate__animated animate__zoomIn animate__faster">
     <div class="modal-header"><span class="modal-title">Reset Password</span><button class="modal-close rmodal-close">&times;</button></div>
@@ -1460,7 +1485,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     <div class="modal-footer"><button class="btn-outline rmodal-close">Cancel</button><button class="btn-primary" id="btn-r-submit">Reset Password</button></div>
   </div>
 </div>
-
 <div class="modal-overlay" id="entry-modal">
   <div class="modal-box animate__animated animate__zoomIn animate__faster">
     <div class="modal-header">
@@ -1505,7 +1529,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     </div>
   </div>
 </div>
-
 <div class="cp-modal-overlay" id="cp-modal">
   <div class="cp-modal-box animate__animated animate__zoomIn animate__faster">
     <div class="modal-header">
@@ -1535,13 +1558,11 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     </div>
   </div>
 </div>
-
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
 (function(){
 'use strict';
-
 var STATE = {
   user: null,
   csrf: '',
@@ -1566,20 +1587,16 @@ var STATE = {
   reportProjects: [],
   reportUsers: [],
 };
-
 function el(id){ return document.getElementById(id); }
-
 function showErr(id, msg){
   var e = el(id);
   if(!e) return;
   e.textContent = msg || '';
   if(msg) e.classList.add('visible'); else e.classList.remove('visible');
 }
-
 function clearErrors(){
   document.querySelectorAll('.field-error').forEach(function(e){ e.textContent=''; e.classList.remove('visible'); });
 }
-
 function saveTableState(){
   localStorage.setItem('tt_tbl_state', JSON.stringify({
     currentPage: STATE.currentPage, perPage: STATE.perPage,
@@ -1587,7 +1604,6 @@ function saveTableState(){
     statusFilter: STATE.statusFilter, dateStart: STATE.dateStart, dateEnd: STATE.dateEnd
   }));
 }
-
 function loadTableState(){
   try{
     var s = JSON.parse(localStorage.getItem('tt_tbl_state'));
@@ -1613,7 +1629,6 @@ function loadTableState(){
     }
   }catch(e){}
 }
-
 function apiCall(endpoint, method, body){
   var opts = { method: method || 'GET', headers: { 'X-CSRF-TOKEN': STATE.csrf } };
   if(body){ opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
@@ -1625,14 +1640,12 @@ function apiCall(endpoint, method, body){
     return r.json();
   });
 }
-
 function showLogin(){
   STATE.user = null;
   el('app-main').classList.remove('active');
   el('app-login').classList.add('active');
   loadCaptcha();
 }
-
 function showMain(){
   el('app-login').classList.remove('active');
   el('app-main').classList.add('active');
@@ -1641,7 +1654,6 @@ function showMain(){
   loadTimesheets();
   prefetchProjectsAndTypes();
 }
-
 function showPage(pageId){
   document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
   var p = el(pageId);
@@ -1652,11 +1664,9 @@ function showPage(pageId){
     p.classList.add('animate__animated','animate__fadeIn');
   }
 }
-
 function getInitials(name){
   return name.split(' ').map(function(w){ return w[0]; }).join('').substring(0,2).toUpperCase();
 }
-
 function setUserUI(user){
   STATE.user = user;
   el('topbar-username').textContent = user.name;
@@ -1675,7 +1685,6 @@ function setUserUI(user){
     document.querySelectorAll('[id^="btn-admin-"]').forEach(function(b){ b.style.display = 'none'; });
   }
 }
-
 function loadCaptcha(){
   document.querySelectorAll('.captcha-img').forEach(function(img){ img.src = ''; });
   el('captcha-answer').value = '';
@@ -1686,21 +1695,17 @@ function loadCaptcha(){
     STATE.captchaToken = d.token;
   }).catch(function(){});
 }
-
 document.querySelectorAll('.captcha-img').forEach(function(img){ img.addEventListener('click', loadCaptcha); });
-
 el('btn-show-register').addEventListener('click', function(){
   el('login-form-wrap').style.display = 'none';
   el('register-wrap').style.display = 'block';
   loadCaptcha();
 });
-
 el('btn-show-login').addEventListener('click', function(){
   el('register-wrap').style.display = 'none';
   el('login-form-wrap').style.display = 'block';
   loadCaptcha();
 });
-
 el('btn-register').addEventListener('click', function(){
   clearErrors();
   var name = el('reg-name').value.trim();
@@ -1734,7 +1739,6 @@ el('btn-register').addEventListener('click', function(){
     loadCaptcha();
   });
 });
-
 el('btn-signin').addEventListener('click', function(){
   clearErrors();
   var email = el('login-email').value.trim();
@@ -1766,11 +1770,9 @@ el('btn-signin').addEventListener('click', function(){
     loadCaptcha();
   });
 });
-
 el('login-email').addEventListener('keydown', function(e){ if(e.key==='Enter') el('btn-signin').click(); });
 el('login-password').addEventListener('keydown', function(e){ if(e.key==='Enter') el('btn-signin').click(); });
 el('captcha-answer').addEventListener('keydown', function(e){ if(e.key==='Enter') el('btn-signin').click(); });
-
 el('user-menu-btn').addEventListener('click', function(e){
   e.stopPropagation();
   el('user-dropdown').classList.toggle('open');
@@ -1779,7 +1781,6 @@ document.addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   if(STATE.activeOpenMenu){ STATE.activeOpenMenu.classList.remove('open'); STATE.activeOpenMenu = null; }
 });
-
 el('btn-logout').addEventListener('click', function(){
   Swal.fire({ title:'Sign out?', text:'You will be returned to the login screen.', icon:'question', showCancelButton:true, confirmButtonText:'Sign out', confirmButtonColor:'#DC2626', cancelButtonText:'Cancel' }).then(function(r){
     if(r.isConfirmed){
@@ -1787,11 +1788,9 @@ el('btn-logout').addEventListener('click', function(){
     }
   });
 });
-
 el('btn-back-to-list').addEventListener('click', function(){
   showPage('page-timesheets');
 });
-
 el('btn-show-profile').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   el('prof-name').value = STATE.user.name;
@@ -1806,7 +1805,6 @@ el('btn-show-profile').addEventListener('click', function(){
   }
   showPage('page-profile');
 });
-
 el('btn-change-avatar').addEventListener('click', function(){ el('prof-avatar-file').click(); });
 el('prof-avatar-file').addEventListener('change', function(){
     if(!this.files.length) return;
@@ -1822,7 +1820,6 @@ el('prof-avatar-file').addEventListener('change', function(){
         } else { Swal.fire({icon:'error', title:'Error', text:d.error}); }
     });
 });
-
 el('btn-save-profile').addEventListener('click', function(){
   var name = el('prof-name').value.trim();
   var email = el('prof-email').value.trim();
@@ -1835,9 +1832,7 @@ el('btn-save-profile').addEventListener('click', function(){
     } else { Swal.fire({icon:'error', title:'Error', text:d.error}); }
   });
 });
-
 el('btn-back-from-profile').addEventListener('click', function(){ showPage('page-timesheets'); });
-
 el('btn-show-forgot').addEventListener('click', function(){ openModal('forgot-modal'); });
 el('btn-f-submit').addEventListener('click', function(){
   var email = el('f-email').value.trim();
@@ -1847,7 +1842,6 @@ el('btn-f-submit').addEventListener('click', function(){
     Swal.fire({title:'Token Generated', text:d.message}).then(function(){ openModal('reset-modal'); });
   });
 });
-
 el('btn-r-submit').addEventListener('click', function(){
     var token = el('r-token').value.trim();
     var pass = el('r-pass').value;
@@ -1857,47 +1851,42 @@ el('btn-r-submit').addEventListener('click', function(){
         else { Swal.fire({icon:'error', title:'Error', text:d.error}); }
     });
 });
-
 document.querySelectorAll('.fmodal-close').forEach(function(b){ b.addEventListener('click', function(){ closeModal('forgot-modal'); }); });
 document.querySelectorAll('.rmodal-close').forEach(function(b){ b.addEventListener('click', function(){ closeModal('reset-modal'); }); });
-
 el('btn-admin-users').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   showPage('page-admin');
   loadAdminUsers();
 });
-
 el('btn-admin-projects').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   showPage('page-admin-projects');
   loadAdminProjects();
 });
-
 el('btn-admin-work-types').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   showPage('page-admin-work-types');
   loadAdminWorkTypes();
 });
-
 el('btn-admin-subs').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   showPage('page-admin-submissions');
   loadAdminSubmissions();
 });
-
 el('btn-admin-reports').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   showPage('page-admin-reports');
+  var d = new Date(), y = d.getFullYear(), m = d.getMonth();
+  el('report-start').value = y + '-' + String(m+1).padStart(2,'0') + '-01';
+  el('report-end').value = y + '-' + String(m+1).padStart(2,'0') + '-' + String(new Date(y, m+1, 0).getDate()).padStart(2,'0');
+  el('btn-run-report').click();
 });
-
 document.querySelectorAll('.btn-back-to-admin').forEach(function(b){
   b.addEventListener('click', function(){ showPage('page-admin'); });
 });
-
 el('btn-back-from-admin').addEventListener('click', function(){
   showPage('page-timesheets');
 });
-
 function loadAdminUsers(){
   apiCall('admin_users').then(function(d){
     if(d.success){
@@ -1905,7 +1894,6 @@ function loadAdminUsers(){
     }
   });
 }
-
 function renderAdminUsers(users){
   var tbody = el('admin-users-tbody');
   var html = '';
@@ -1922,33 +1910,28 @@ function renderAdminUsers(users){
     html += '</tr>';
   });
   tbody.innerHTML = html;
-
   tbody.querySelectorAll('.admin-role-sel').forEach(function(sel){
     sel.addEventListener('change', function(){
       updateUser(this.dataset.id, { role: this.value });
     });
   });
-
   tbody.querySelectorAll('.admin-hours-inp').forEach(function(inp){
     inp.addEventListener('change', function(){
       updateUser(this.dataset.id, { standard_hours: this.value });
     });
   });
-
   tbody.querySelectorAll('.approve-toggle').forEach(function(btn){
     btn.addEventListener('click', function(){
       var isApp = this.dataset.approved == 1 ? 0 : 1;
       updateUser(this.dataset.id, { is_approved: isApp });
     });
   });
-
   tbody.querySelectorAll('.delete-user').forEach(function(btn){
     btn.addEventListener('click', function(){
       deleteUser(this.dataset.id);
     });
   });
 }
-
 function updateUser(id, data){
   data.id = id;
   apiCall('admin_user_update', 'POST', data).then(function(d){
@@ -1960,7 +1943,6 @@ function updateUser(id, data){
     }
   });
 }
-
 function deleteUser(id){
   Swal.fire({ title:'Delete user?', text:'This will remove all their timesheets too.', icon:'warning', showCancelButton:true, confirmButtonText:'Delete', confirmButtonColor:'#DC2626' }).then(function(r){
     if(r.isConfirmed){
@@ -1975,17 +1957,14 @@ function deleteUser(id){
     }
   });
 }
-
 function formatDateLabel(dateStr){
   var d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-GB',{ day:'numeric', month:'long', year:'numeric' });
 }
-
 function formatDayLabel(dateStr){
   var d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
 }
-
 var fp = flatpickr(el('date-range-picker'), {
   mode:'range',
   dateFormat:'Y-m-d',
@@ -2005,23 +1984,18 @@ var fp = flatpickr(el('date-range-picker'), {
     }
   }
 });
-
 function formatFP(d){ return d.getFullYear()+'-'+(''+(d.getMonth()+1)).padStart(2,'0')+'-'+(''+d.getDate()).padStart(2,'0'); }
-
 el('date-range-btn').addEventListener('click', function(e){ e.stopPropagation(); fp.open(); });
-
 el('status-filter').addEventListener('change', function(){
   STATE.statusFilter = this.value;
   STATE.currentPage = 1;
   applyFiltersAndRender();
 });
-
 el('per-page-select').addEventListener('change', function(){
   STATE.perPage = parseInt(this.value);
   STATE.currentPage = 1;
   applyFiltersAndRender();
 });
-
 function loadTimesheets(){
   var params = '';
   if(STATE.dateStart && STATE.dateEnd){
@@ -2039,7 +2013,6 @@ function loadTimesheets(){
     }
   }).catch(function(){});
 }
-
 function renderSkeletonRows(){
   var tbody = el('timesheets-tbody');
   var html = '';
@@ -2048,7 +2021,6 @@ function renderSkeletonRows(){
   }
   tbody.innerHTML = html;
 }
-
 function applyFiltersAndRender(){
   var data = STATE.timesheets.slice();
   if(STATE.statusFilter){
@@ -2066,7 +2038,6 @@ function applyFiltersAndRender(){
   renderTimesheetTable();
   renderPagination();
 }
-
 function loadAdminProjects(){
   apiCall('projects').then(function(d){ if(d.success) renderAdminProjects(d.projects); });
 }
@@ -2095,7 +2066,6 @@ el('btn-pmodal-save').addEventListener('click', function(){
   });
 });
 document.querySelectorAll('.pmodal-close').forEach(function(b){ b.addEventListener('click', function(){ closeModal('project-modal'); }); });
-
 function loadAdminWorkTypes(){
   apiCall('work_types').then(function(d){ if(d.success) renderAdminWorkTypes(d.work_types); });
 }
@@ -2124,7 +2094,6 @@ el('btn-wtmodal-save').addEventListener('click', function(){
   });
 });
 document.querySelectorAll('.wtmodal-close').forEach(function(b){ b.addEventListener('click', function(){ closeModal('work-type-modal'); }); });
-
 function loadAdminSubmissions(){
   apiCall('admin_submissions').then(function(d){ if(d.success) renderAdminSubmissions(d.submissions); });
 }
@@ -2133,11 +2102,31 @@ function renderAdminSubmissions(subs){
   var html = '';
   subs.forEach(function(s){
     html += '<tr><td>'+escHtml(s.user_name)+'</td><td>Week '+s.week+', '+s.year+'</td><td>'+s.submitted_at+'</td><td>';
+    html += '<button class="action-link view-sub" data-id="'+s.id+'" data-user="'+escHtml(s.user_name)+'" data-week="'+s.week+'" data-year="'+s.year+'">View</button>';
     html += '<button class="action-link review-sub" data-id="'+s.id+'" data-status="approved">Approve</button>';
     html += '<button class="action-link review-sub danger" data-id="'+s.id+'" data-status="rejected" style="color:var(--red)">Reject</button>';
     html += '</td></tr>';
   });
   tbody.innerHTML = html || '<tr><td colspan="4">No pending submissions.</td></tr>';
+  tbody.querySelectorAll('.view-sub').forEach(function(b){ b.addEventListener('click', function(){
+    var id = b.dataset.id, user = b.dataset.user, week = b.dataset.week, year = b.dataset.year;
+    el('av-modal-title').textContent = user + ' - Week ' + week + ', ' + year;
+    el('av-modal-tbody').innerHTML = '<tr><td colspan="5" style="text-align:center">Loading...</td></tr>';
+    openModal('admin-view-modal');
+    apiCall('admin_submission_entries&id='+id, 'GET').then(function(d){
+        if(d.success){
+            var h = '', total = 0;
+            d.entries.forEach(function(e){
+                var dFormatted = new Date(e.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+                h += '<tr><td>'+dFormatted+'</td><td>'+escHtml(e.project_name)+'</td><td>'+escHtml(e.work_type_name)+'</td><td>'+parseFloat(e.hours)+'h</td><td>'+escHtml(e.description)+'</td></tr>';
+                total += parseFloat(e.hours);
+            });
+            if(!h) h = '<tr><td colspan="5" style="text-align:center">No entries found.</td></tr>';
+            else h += '<tr><td colspan="3" style="text-align:right;font-weight:bold">Total Hours:</td><td colspan="2" style="font-weight:bold;color:var(--blue)">'+total+'h</td></tr>';
+            el('av-modal-tbody').innerHTML = h;
+        }
+    });
+  });});
   tbody.querySelectorAll('.review-sub').forEach(function(b){ b.addEventListener('click', function(){
     var id = b.dataset.id, status = b.dataset.status;
     if(status==='rejected'){
@@ -2147,15 +2136,17 @@ function renderAdminSubmissions(subs){
     } else { reviewSub(id, status); }
   });});
 }
+document.querySelectorAll('.av-modal-close').forEach(function(b){ b.addEventListener('click', function(){ closeModal('admin-view-modal'); }); });
 function reviewSub(id, status, reason){
     apiCall('admin_submission_review','POST',{id:id, status:status, reason:reason}).then(function(d){
         if(d.success){ Swal.fire({icon:'success', title:'Success', text:d.message}); loadAdminSubmissions(); }
     });
 }
-
 el('btn-run-report').addEventListener('click', function(){
   var s = el('report-start').value, e = el('report-end').value;
   if(!s || !e) return;
+  el('report-projects-tbody').innerHTML = '<tr><td colspan="2" style="text-align:center">Loading...</td></tr>';
+  el('report-users-tbody').innerHTML = '<tr><td colspan="2" style="text-align:center">Loading...</td></tr>';
   apiCall('reports&start='+s+'&end='+e).then(function(d){
     if(d.success){
         var ph = '', uh = '';
@@ -2166,12 +2157,13 @@ el('btn-run-report').addEventListener('click', function(){
     }
   });
 });
-
 el('btn-submit-week').addEventListener('click', function(){
     Swal.fire({title:'Submit for approval?', text:'This will lock your timesheet for this week.', icon:'question', showCancelButton:true}).then(function(r){
         if(r.isConfirmed){
+            var wInfo = STATE.timesheets.find(function(w){ return w.date_start === STATE.currentWeekStart; });
             var dt = new Date(STATE.currentWeekStart+'T00:00:00');
-            var year = dt.getFullYear(), week = getWeekNumber(dt);
+            var year = wInfo ? wInfo.year : dt.getFullYear();
+            var week = wInfo ? wInfo.week : getWeekNumber(dt);
             apiCall('submit_week','POST', {year: year, week: week}).then(function(d){
                 if(d.success){ Swal.fire({icon:'success', title:'Submitted', text:d.message}); loadTimesheets(); openWeekDetail(STATE.currentWeekStart, STATE.currentWeekEnd); }
                 else { Swal.fire({icon:'error', title:'Error', text:d.error}); }
@@ -2179,11 +2171,9 @@ el('btn-submit-week').addEventListener('click', function(){
         }
     });
 });
-
 el('btn-export-week').addEventListener('click', function(){
     window.location.href = '?api=export_csv&start='+STATE.currentWeekStart+'&end='+STATE.currentWeekEnd;
 });
-
 function getWeekNumber(d) {
     d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
@@ -2191,7 +2181,6 @@ function getWeekNumber(d) {
     var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
     return weekNo;
 }
-
 function renderTimesheetTable(){
   saveTableState();
   var tbody = el('timesheets-tbody');
@@ -2224,7 +2213,6 @@ function renderTimesheetTable(){
     });
   });
 }
-
 function renderPagination(){
   var total = STATE.filteredTimesheets.length;
   var pages = Math.ceil(total / STATE.perPage);
@@ -2245,7 +2233,6 @@ function renderPagination(){
     else if(!btn.classList.contains('dots')) btn.addEventListener('click',function(){ STATE.currentPage=parseInt(this.textContent);renderTimesheetTable();renderPagination(); });
   });
 }
-
 function buildPageNums(cur, total){
   var res = [];
   if(total <= 7){ for(var i=1;i<=total;i++) res.push(i); return res; }
@@ -2257,7 +2244,6 @@ function buildPageNums(cur, total){
   res.push(total);
   return res;
 }
-
 document.querySelectorAll('thead th.sortable').forEach(function(th){
   th.addEventListener('click', function(){
     var col = this.dataset.col;
@@ -2268,22 +2254,18 @@ document.querySelectorAll('thead th.sortable').forEach(function(th){
     applyFiltersAndRender();
   });
 });
-
 function openWeekDetail(start, end){
   STATE.currentWeekStart = start;
   STATE.currentWeekEnd = end;
   var s = new Date(start+'T00:00:00'), e = new Date(end+'T00:00:00');
   el('detail-range-label').textContent = s.toLocaleDateString('en-US',{day:'numeric',month:'short'}) + ' - ' + e.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'});
-  
   var wInfo = STATE.timesheets.find(function(w){ return w.date_start === start; });
   var isLocked = wInfo && (wInfo.status === 'pending' || wInfo.status === 'approved');
   el('btn-submit-week').disabled = isLocked;
   el('btn-submit-week').textContent = isLocked ? (wInfo.status === 'approved' ? 'Approved' : 'Pending Review') : 'Submit for Approval';
-
   showPage('page-detail');
   loadWeekEntries();
 }
-
 function loadWeekEntries(){
   el('entries-container').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted)"><span class="skeleton" style="display:inline-block;width:200px;height:16px"></span></div>';
   el('progress-label').textContent = 'Loading...';
@@ -2297,28 +2279,23 @@ function loadWeekEntries(){
     }
   }).catch(function(){});
 }
-
 function renderWeekDetail(totalHours, stdHours, status, reason){
   var pct = Math.min((totalHours/stdHours)*100, 100);
   el('progress-label').textContent = totalHours.toFixed(1) + '/' + stdHours + ' hrs';
   var bar = el('progress-bar');
   bar.style.width = pct + '%';
   if(totalHours >= stdHours) bar.classList.add('complete'); else bar.classList.remove('complete');
-
   var isLocked = (status === 'pending' || status === 'approved');
-
   var html = '';
   if(status === 'rejected'){
       html += '<div style="padding:1rem;background:var(--pink-bg);color:var(--pink);border-radius:var(--radius);font-size:0.875rem;margin-bottom:1rem;border:1px solid var(--pink)"><strong>Rejected:</strong> '+escHtml(reason)+'</div>';
   }
-
   var grouped = {};
   var order = [];
   STATE.weekEntries.forEach(function(entry){
     if(!grouped[entry.date]){ grouped[entry.date] = []; order.push(entry.date); }
     grouped[entry.date].push(entry);
   });
-
   var d = new Date(STATE.currentWeekStart+'T00:00:00');
   var dEnd = new Date(STATE.currentWeekEnd+'T00:00:00');
   var allDays = [];
@@ -2326,7 +2303,6 @@ function renderWeekDetail(totalHours, stdHours, status, reason){
     allDays.push(formatFP(d));
     d.setDate(d.getDate()+1);
   }
-
   var html = '';
   allDays.forEach(function(dateStr){
     var dayLabel = formatDayLabel(dateStr);
@@ -2354,9 +2330,7 @@ function renderWeekDetail(totalHours, stdHours, status, reason){
     }
     html += '</div>';
   });
-
   el('entries-container').innerHTML = html;
-
   el('entries-container').querySelectorAll('.entry-menu-btn').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
@@ -2366,7 +2340,6 @@ function renderWeekDetail(totalHours, stdHours, status, reason){
       STATE.activeOpenMenu = menu.classList.contains('open') ? menu : null;
     });
   });
-
   el('entries-container').querySelectorAll('.edit-entry').forEach(function(btn){
     btn.addEventListener('click', function(){
       var id = parseInt(this.dataset.id);
@@ -2374,21 +2347,18 @@ function renderWeekDetail(totalHours, stdHours, status, reason){
       if(entry) openEditModal(entry);
     });
   });
-
   el('entries-container').querySelectorAll('.delete-entry').forEach(function(btn){
     btn.addEventListener('click', function(){
       var id = parseInt(this.dataset.id);
       confirmDeleteEntry(id);
     });
   });
-
   el('entries-container').querySelectorAll('.btn-add-task').forEach(function(btn){
     btn.addEventListener('click', function(){
       openAddModal(this.dataset.date);
     });
   });
 }
-
 function prefetchProjectsAndTypes(){
   if(!STATE.projects.length){
     fetch('?api=projects',{headers:{'X-CSRF-TOKEN':STATE.csrf}}).then(function(r){return r.json();}).then(function(d){ if(d.success) STATE.projects = d.projects; });
@@ -2397,7 +2367,6 @@ function prefetchProjectsAndTypes(){
     fetch('?api=work_types',{headers:{'X-CSRF-TOKEN':STATE.csrf}}).then(function(r){return r.json();}).then(function(d){ if(d.success) STATE.workTypes = d.work_types; });
   }
 }
-
 function populateModalSelects(projectId, workTypeId){
   var ps = el('modal-project');
   ps.innerHTML = '<option value="">— Select Project —</option>';
@@ -2406,7 +2375,6 @@ function populateModalSelects(projectId, workTypeId){
   ws.innerHTML = '<option value="">— Select Work Type —</option>';
   STATE.workTypes.forEach(function(w){ ws.innerHTML += '<option value="'+w.id+'"'+(w.id==workTypeId?' selected':'')+'>'+escHtml(w.name)+'</option>'; });
 }
-
 function openAddModal(dateStr){
   clearErrors();
   STATE.editingEntryId = null;
@@ -2419,7 +2387,6 @@ function openAddModal(dateStr){
   populateModalSelects(null, null);
   openModal('entry-modal');
 }
-
 function openEditModal(entry){
   clearErrors();
   STATE.editingEntryId = entry.id;
@@ -2432,20 +2399,16 @@ function openEditModal(entry){
   populateModalSelects(entry.project_id, entry.work_type_id);
   openModal('entry-modal');
 }
-
 function openModal(id){
   var m = el(id);
   m.classList.add('open');
   var box = m.querySelector('.modal-box,.cp-modal-box');
   if(box){ box.classList.remove('animate__zoomIn'); void box.offsetWidth; box.classList.add('animate__zoomIn'); }
 }
-
 function closeModal(id){ el(id).classList.remove('open'); }
-
 el('modal-close-btn').addEventListener('click', function(){ closeModal('entry-modal'); });
 el('modal-cancel-btn').addEventListener('click', function(){ closeModal('entry-modal'); });
 el('entry-modal').addEventListener('click', function(e){ if(e.target === this) closeModal('entry-modal'); });
-
 el('hours-minus').addEventListener('click', function(){
   var v = parseFloat(el('modal-hours').value)||1;
   if(v > 0.5) el('modal-hours').value = Math.round((v-0.5)*10)/10;
@@ -2454,7 +2417,6 @@ el('hours-plus').addEventListener('click', function(){
   var v = parseFloat(el('modal-hours').value)||1;
   if(v < 24) el('modal-hours').value = Math.round((v+0.5)*10)/10;
 });
-
 el('modal-save-btn').addEventListener('click', function(){
   clearErrors();
   var projectId = parseInt(el('modal-project').value)||0;
@@ -2488,7 +2450,6 @@ el('modal-save-btn').addEventListener('click', function(){
     Swal.fire({ icon:'error', title:'Network Error', text:'Please try again.' });
   });
 });
-
 function confirmDeleteEntry(id){
   Swal.fire({ title:'Delete this entry?', text:'This action cannot be undone.', icon:'warning', showCancelButton:true, confirmButtonText:'Yes, delete it', confirmButtonColor:'#DC2626', cancelButtonText:'Cancel' }).then(function(r){
     if(r.isConfirmed){
@@ -2504,7 +2465,6 @@ function confirmDeleteEntry(id){
     }
   });
 }
-
 el('btn-change-password').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   el('cp-current').value=''; el('cp-new').value=''; el('cp-confirm').value='';
@@ -2514,7 +2474,6 @@ el('btn-change-password').addEventListener('click', function(){
 el('cp-modal-close').addEventListener('click', function(){ closeModal('cp-modal'); });
 el('cp-cancel-btn').addEventListener('click', function(){ closeModal('cp-modal'); });
 el('cp-modal').addEventListener('click', function(e){ if(e.target===this) closeModal('cp-modal'); });
-
 el('cp-save-btn').addEventListener('click', function(){
   clearErrors();
   var cur = el('cp-current').value;
@@ -2542,12 +2501,10 @@ el('cp-save-btn').addEventListener('click', function(){
     Swal.fire({ icon:'error', title:'Network Error', text:'Please try again.' });
   });
 });
-
 function escHtml(str){
   if(!str) return '';
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-
 function init(){
   loadCaptcha();
   fetch('?api=me',{headers:{'X-CSRF-TOKEN':''}}).then(function(r){return r.json();}).then(function(d){
@@ -2560,7 +2517,6 @@ function init(){
     }
   }).catch(function(){ showLogin(); });
 }
-
 var _idleTimer;
 function resetIdleTimer(){
   clearTimeout(_idleTimer);
@@ -2572,7 +2528,6 @@ function resetIdleTimer(){
 }
 ['mousemove','keydown','click','scroll','touchstart'].forEach(function(ev){ document.addEventListener(ev, resetIdleTimer, {passive:true}); });
 resetIdleTimer();
-
 init();
 })();
 </script>
