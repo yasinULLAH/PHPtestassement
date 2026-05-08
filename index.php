@@ -162,6 +162,7 @@ function checkRateLimit(): void
   $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
   try {
     $db = getDB();
+    $db->exec('DELETE FROM login_attempts WHERE attempt_time <= DATE_SUB(NOW(), INTERVAL 15 MINUTE)');
     $db->prepare('INSERT INTO login_attempts (ip_address) VALUES (?)')->execute([$ip]);
     $stmt = $db->prepare('SELECT COUNT(*) FROM login_attempts WHERE ip_address = ? AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)');
     $stmt->execute([$ip]);
@@ -824,6 +825,7 @@ if ($api !== '') {
       break;
     case 'upload_avatar':
       requireAuth();
+      verifyCsrf();
       if ($_SERVER['REQUEST_METHOD'] !== 'POST')
         jsonError('Method not allowed', 405);
       if (!isset($_FILES['avatar']))
@@ -831,14 +833,14 @@ if ($api !== '') {
       $file = $_FILES['avatar'];
       if ($file['error'] !== UPLOAD_ERR_OK)
         jsonError('Upload failed.');
-      $allowed = ['image/jpeg', 'image/png', 'image/webp'];
-      if (!in_array($file['type'], $allowed))
+      $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+      if (!array_key_exists($file['type'], $allowed))
         jsonError('Invalid file type. Only JPG, PNG, and WebP allowed.');
       if ($file['size'] > 2 * 1024 * 1024)
         jsonError('File too large. Max 2MB.');
       if (!@getimagesize($file['tmp_name']))
         jsonError('Invalid image content. File may be corrupted or malicious.');
-      $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+      $ext = $allowed[$file['type']];
       $filename = 'avatar_' . $_SESSION['user_id'] . '_' . time() . '.' . $ext;
       $uploadDir = 'uploads/avatars/';
       if (!is_dir($uploadDir)) {

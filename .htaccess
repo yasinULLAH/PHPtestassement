@@ -1,0 +1,29 @@
+# 1. Disable Directory Listing
+Options -Indexes
+Options +FollowSymLinks
+
+# 2. Block access to sensitive files (Compatible with older & newer Apache)
+<FilesMatch "\.(sql|md|json|log|env|gitattributes|yml|yaml|ini|txt)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 3. Force HTTPS (Only applies if not on localhost)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)$ [NC]
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# 4. Basic Security Headers (Fails gracefully if mod_headers is disabled)
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
