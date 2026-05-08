@@ -272,6 +272,9 @@ if ($api !== '') {
             break;
 
         case 'me':
+            if (empty($_SESSION['user_id'])) {
+                jsonOut(['success' => false, 'error' => 'Unauthenticated'], 200);
+            }
             requireAuth();
             jsonOut(['success' => true, 'user' => ['id' => $_SESSION['user_id'], 'name' => $_SESSION['user_name'], 'email' => $_SESSION['user_email'], 'role' => $_SESSION['user_role']], 'csrf' => csrfToken()]);
             break;

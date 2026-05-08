@@ -1,43 +1,43 @@
-# ticktock - ٹائم شیٹ مینجمنٹ ایپ
+# ticktock — Timesheet Management App
 
-ایک جدید اور خوبصورت ٹائم شیٹ مینجمنٹ ایپلی کیشن جو سنگل فائل سلوشن کے طور پر بنائی گئی تھی۔ اب یہ ایک مکمل PWA (Progressive Web App) میں تبدیل ہو چکی ہے تاکہ اسے آف لائن اور ڈیسک ٹاپ/موبائل پر انسٹال کر کے استعمال کیا جا سکے۔
+A sleek, SaaS-style timesheet management application built as a single-file solution. It has now been upgraded to a full PWA (Progressive Web App) to allow for offline use and installation on both desktop and mobile devices.
 
-## 🚀 لائیو ڈیمو
-**[یہاں اپنے ڈیمو کا لنک شامل کریں]**
+## 🚀 Live Demo
+**[Insert your demo link here]**
 
-## 🛠️ استعمال شدہ ٹیکنالوجیز اور لائبریریاں
-- **Vanilla HTML5 اور JavaScript (ES6+)**: ایپ کی بنیادی لاجک کے لیے۔
-- **Tailwind CSS**: جدید اور ریسپانسیو ڈیزائن کے لیے۔
-- **IndexedDB**: براؤزر میں مقامی طور پر ڈیٹا محفوظ کرنے کے لیے (بغیر کسی سرور یا بیک اینڈ کے)۔
-- **PWA (Progressive Web App)**: ایپ کو موبائل اور ڈیسک ٹاپ پر انسٹال کرنے کی سہولت (`manifest.json` اور `sw.js` کا استعمال)۔
-- **Inter Font**: ٹائپوگرافی کے لیے گوگل فونٹس سے۔
-- **Heroicons**: UI میں خوبصورت آئیکنز کے لیے۔
+## 🛠️ Technologies & Libraries Used
+- **Vanilla HTML5 & JavaScript (ES6+)**: Core application logic.
+- **Tailwind CSS**: Modern and responsive UI styling.
+- **IndexedDB**: Local browser-based database for data persistence (no backend/server required).
+- **PWA (Progressive Web App)**: Provides an app-like experience with installation support via `manifest.json` and `sw.js`.
+- **Inter Font**: High-quality typography via Google Fonts.
+- **Heroicons**: Beautiful SVG icons for the UI.
 
-## ✨ نئی خصوصیات (Client-side Features)
-- **PWA کی سہولت**: اب آپ اس ایپ کو اپنے فون یا کمپیوٹر پر ایک عام ایپ کی طرح انسٹال کر سکتے ہیں۔ سروس ورکرز (Service Workers) کی مدد سے یہ آف لائن بھی کام کرتی ہے۔
-- **صارف کی رجسٹریشن (User Registration)**: اب صارفین اپنا نیا اکاؤنٹ بنا سکتے ہیں، جو براؤزر کے مقامی ڈیٹا بیس میں محفوظ ہوتا ہے۔
-- **ڈیٹا بیک اپ اور ریسٹور (Data Backup & Restore)**: چونکہ یہ ایپ سرور کا استعمال نہیں کرتی، اس لیے صارفین اپنے مکمل ڈیٹا (صارفین، پروجیکٹس، اور ٹائم شیٹس) کو JSON فائل کی شکل میں ڈاؤن لوڈ (Backup) کر سکتے ہیں اور کسی بھی وقت واپس اپ لوڈ (Restore) کر کے اپنا ڈیٹا بحال کر سکتے ہیں۔
+## ✨ New Client-Side Features
+- **PWA Capabilities**: You can now install this app on your phone or computer like a native application. It works offline thanks to Service Workers.
+- **User Registration**: Users can now create their own accounts locally. This data is stored securely in the browser's IndexedDB.
+- **Data Backup & Restore**: Since the app is serverless, users can export their entire database (Users, Projects, and Timesheets) as a JSON file. This file can be imported back at any time to restore the data on a different device or after clearing browser storage.
 
-## 📋 استعمال کی ہدایات
-یہ ایک مکمل سیلف کنٹینڈ ایپلی کیشن ہے، اس لیے کسی پیچیدہ سیٹ اپ کی ضرورت نہیں ہے۔
+## 📋 Usage Instructions
+This is a self-contained application, so no complex setup is required.
 
-1. اس پروجیکٹ کی فائلز (`index.html`, `manifest.json`, `sw.js`, `icon.svg`) ڈاؤن لوڈ کریں۔
-2. کسی بھی لوکل سرور کے ذریعے (مثلاً VS Code Live Server یا `php -S localhost:8000`) چلائیں تاکہ سروس ورکرز اور PWA فیچرز درست طریقے سے کام کریں۔
-3. **لاگ ان کی تفصیلات**:
-   - آپ رجسٹریشن پیج کے ذریعے اپنا نیا اکاؤنٹ بنا کر لاگ ان کر سکتے ہیں۔
-   - یا پھر ڈیفالٹ ٹیسٹنگ اکاؤنٹ استعمال کریں:
-     - **ای میل**: `name@example.com`
-     - **پاس ورڈ**: `password`
+1. Download the project files (`index.html`, `manifest.json`, `sw.js`, `icon.svg`).
+2. Run them through a local server (e.g., VS Code Live Server or `php -S localhost:8000`) for Service Workers and PWA features to function correctly.
+3. **Login Details**:
+   - You can create a new account via the registration page.
+   - Or use the default testing credentials:
+     - **Email**: `name@example.com`
+     - **Password**: `password`
 
-## 💡 اہم نوٹس اور مفروضات
-- **مقامی ڈیٹا (Local Storage)**: آپ کا تمام ڈیٹا آپ کے براؤزر کے IndexedDB میں محفوظ ہوتا ہے۔ براؤزر کا ڈیٹا (Cache/Storage) کلیئر کرنے سے ایپ کا سارا ڈیٹا ڈیلیٹ ہو جائے گا، اس لیے ایپ میں موجود **Backup Data** کے بٹن کا استعمال باقاعدگی سے کریں۔
-- **آف لائن فرسٹ**: PWA انضمام کی بدولت ایپ انٹرنیٹ کے بغیر بھی لوڈ ہو سکتی ہے۔
-- **ڈیٹا کی ساخت**: ڈیش بورڈ کو خاص طور پر جنوری 2024 کے ٹائم شیٹس دکھانے کے لیے ڈیزائن کیا گیا ہے۔
+## 💡 Important Notes & Assumptions
+- **Local Data Persistence**: All your data is stored in the browser's IndexedDB. Clearing browser cache/site data will delete your timesheets. Use the **Backup Data** button frequently to keep your data safe.
+- **Offline-First**: Thanks to PWA integration, the app can load even without an internet connection.
+- **Data Structure**: The dashboard is specifically designed to showcase timesheets for January 2024 as per the client's design requirements.
 
 ---
-**وقت کی تقسیم (Time Spent):**
-- ریسرچ اور منصوبہ بندی: 1 گھنٹہ
-- IndexedDB اور ڈیٹا لیئر: 1.5 گھنٹے
-- UI اور اسٹائلنگ: 2.5 گھنٹے
-- PWA، بیک اپ اور رجسٹریشن فیچرز: 1.5 گھنٹے
-- **کل وقت**: ~6.5 گھنٹے
+**Time Spent:**
+- Research & Planning: 1 Hour
+- IndexedDB & Data Layer: 1.5 Hours
+- UI & Styling: 2.5 Hours
+- PWA, Backup, and Registration: 1.5 Hours
+- **Total Time**: ~6.5 Hours
