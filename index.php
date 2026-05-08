@@ -233,7 +233,7 @@ if ($api !== '') {
           jsonError('Incorrect CAPTCHA answer.');
         }
         $db->prepare('DELETE FROM captcha_store WHERE token = ?')->execute([$captchaToken]);
-        $stmt = $db->prepare('SELECT id, email, password_hash, name, role, is_approved FROM users WHERE email = ? AND is_active = 1 AND is_deleted = 0');
+        $stmt = $db->prepare('SELECT id, email, password_hash, name, role, is_approved, avatar_url FROM users WHERE email = ? AND is_active = 1 AND is_deleted = 0');
         $stmt->execute([$email]);
         $user = $stmt->fetch();
         if (!$user || !password_verify($password, $user['password_hash'])) {
@@ -248,10 +248,11 @@ if ($api !== '') {
         $_SESSION['user_name'] = $user['name'];
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['user_role'] = $user['role'];
+        $_SESSION['user_avatar_url'] = $user['avatar_url'];
         $_SESSION['last_activity'] = time();
         $_SESSION['session_start'] = time();
         csrfToken();
-        jsonOut(['success' => true, 'user' => ['id' => $user['id'], 'name' => $user['name'], 'email' => $user['email'], 'role' => $user['role']], 'csrf' => $_SESSION['csrf_token']]);
+        jsonOut(['success' => true, 'user' => ['id' => $user['id'], 'name' => $user['name'], 'email' => $user['email'], 'role' => $user['role'], 'avatar_url' => $user['avatar_url']], 'csrf' => $_SESSION['csrf_token']]);
       } catch (PDOException $e) {
         jsonError('Login failed. Please try again.', 500);
       }
@@ -312,7 +313,7 @@ if ($api !== '') {
         jsonOut(['success' => false, 'error' => 'Unauthenticated'], 200);
       }
       requireAuth();
-      jsonOut(['success' => true, 'user' => ['id' => $_SESSION['user_id'], 'name' => $_SESSION['user_name'], 'email' => $_SESSION['user_email'], 'role' => $_SESSION['user_role']], 'csrf' => csrfToken()]);
+      jsonOut(['success' => true, 'user' => ['id' => $_SESSION['user_id'], 'name' => $_SESSION['user_name'], 'email' => $_SESSION['user_email'], 'role' => $_SESSION['user_role'], 'avatar_url' => $_SESSION['user_avatar_url'] ?? null], 'csrf' => csrfToken()]);
       break;
     case 'timesheets':
       requireAuth();
@@ -862,6 +863,7 @@ if ($api !== '') {
         try {
           $db = getDB();
           $db->prepare('UPDATE users SET avatar_url = ? WHERE id = ?')->execute([$path, $_SESSION['user_id']]);
+          $_SESSION['user_avatar_url'] = $path;
           jsonOut(['success' => true, 'avatar_url' => $path]);
         } catch (PDOException $e) {
           jsonError('Failed to update database.', 500);

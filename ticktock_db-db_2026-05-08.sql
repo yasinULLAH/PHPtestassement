@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: May 08, 2026 at 02:47 PM
+-- Generation Time: May 08, 2026 at 02:53 PM
 -- Server version: 8.2.0
 -- PHP Version: 8.3.0
 
@@ -39,9 +39,15 @@ CREATE TABLE `captcha_store` (
 --
 
 INSERT INTO `captcha_store` (`id`, `token`, `answer`, `expires_at`) VALUES
-(120, 'd31cf8b614dd85afef9274fc0631a90b', '5', '2026-05-08 18:46:49'),
 (121, '2b1b316dc99ab2eaa5bc01ad2271f115', '12', '2026-05-08 18:55:09'),
-(122, 'b7603267fdd71df171da8f2589ed920c', '8', '2026-05-08 18:56:29');
+(122, 'b7603267fdd71df171da8f2589ed920c', '8', '2026-05-08 18:56:29'),
+(123, '499176d49d9e1a500bb346d47e0a6e68', '13', '2026-05-08 18:58:10'),
+(125, 'a667fd1570aa76fe5fe63c5f5ca7e672', '14', '2026-05-08 19:01:59'),
+(126, '203f523503e9af998876e7990392ccd2', '10', '2026-05-08 19:02:03'),
+(127, '24a1ef0e8194931446558c12527c38a2', '7', '2026-05-08 19:02:08'),
+(128, '8318b548c8632ae13e2329365375e888', '10', '2026-05-08 19:02:26'),
+(129, '3899885f54e087fae73ae882994fb68d', '3', '2026-05-08 19:02:37'),
+(130, '5bb85a5a68475fc17635932297acc6d1', '14', '2026-05-08 19:02:40');
 
 -- --------------------------------------------------------
 
@@ -221,7 +227,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `email`, `password_hash`, `name`, `avatar_url`, `reset_token`, `reset_expires`, `role`, `standard_hours`, `is_active`, `is_approved`, `is_deleted`, `created_at`, `updated_at`) VALUES
-(1, 'yasin@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'yasin ullah', 'uploads/avatars/avatar_1_1778247314.jpg', NULL, NULL, 'admin', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 13:35:14'),
+(1, 'yasin@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'yasin ullah', 'uploads/avatars/avatar_1_1778248341.jpg', NULL, NULL, 'admin', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 13:52:21'),
 (2, 'sarah.connor@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Sarah Connor', NULL, NULL, NULL, 'user', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
 (3, 'michael.chen@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Michael Chen', NULL, NULL, NULL, 'user', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
 (4, 'priya.sharma@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Priya Sharma', NULL, NULL, NULL, 'user', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
@@ -326,13 +332,13 @@ ALTER TABLE `work_types`
 -- AUTO_INCREMENT for table `captcha_store`
 --
 ALTER TABLE `captcha_store`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=123;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=132;
 
 --
 -- AUTO_INCREMENT for table `login_attempts`
 --
 ALTER TABLE `login_attempts`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT for table `projects`
