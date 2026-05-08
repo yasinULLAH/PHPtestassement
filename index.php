@@ -1,4 +1,15 @@
 <?php
+$isLocalhost = in_array(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0], ['localhost', '127.0.0.1', '::1']);
+$isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
+if ($isLocalhost && $isHttps) {
+  header('Location: http://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'], true, 302);
+  exit;
+} elseif (!$isLocalhost && !$isHttps) {
+  header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'], true, 301);
+  exit;
+}
+
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'ticktock_db');
 define('DB_USER', 'root');
@@ -327,8 +338,11 @@ if ($api !== '') {
         $uStmt = $db->prepare('SELECT standard_hours FROM users WHERE id = ?');
         $uStmt->execute([$userId]);
         $stdHours = (float) ($uStmt->fetchColumn() ?: 40.0);
+        $weeks = getWeeksInRange($startDate, $endDate);
+        $queryStart = !empty($weeks) ? $weeks[0]['start'] : $startDate;
+        $queryEnd = !empty($weeks) ? end($weeks)['end'] : $endDate;
         $stmt = $db->prepare('SELECT date, SUM(hours) as total_hours FROM timesheet_entries WHERE user_id = ? AND date BETWEEN ? AND ? GROUP BY date');
-        $stmt->execute([$userId, $startDate, $endDate]);
+        $stmt->execute([$userId, $queryStart, $queryEnd]);
         $entriesByDate = [];
         while ($row = $stmt->fetch()) {
           $entriesByDate[$row['date']] = (float) $row['total_hours'];
@@ -342,7 +356,6 @@ if ($api !== '') {
             'reason' => $srow['rejection_reason']
           ];
         }
-        $weeks = getWeeksInRange($startDate, $endDate);
         $result = [];
         $weekNum = 1;
         foreach ($weeks as $w) {
@@ -387,7 +400,7 @@ if ($api !== '') {
       break;
     case 'week_entries':
       requireAuth();
-      $targetUserId = (int)($_GET['user_id'] ?? 0);
+      $targetUserId = (int) ($_GET['user_id'] ?? 0);
       $userId = ($targetUserId > 0 && $_SESSION['user_role'] === 'admin') ? $targetUserId : (int) $_SESSION['user_id'];
       $startDate = $_GET['start'] ?? '';
       $endDate = $_GET['end'] ?? '';
@@ -707,46 +720,52 @@ if ($api !== '') {
       $end = $_GET['end'] ?? date('Y-m-d', strtotime('Sunday this week'));
       try {
         $db = getDB();
-        $users = $db->query("SELECT id, name, standard_hours FROM users WHERE is_active = 1 AND is_deleted = 0 ORDER BY name ASC")->fetchAll();
-        $stmt = $db->prepare('SELECT user_id, date, hours FROM timesheet_entries WHERE date BETWEEN ? AND ?');
-        $stmt->execute([$start, $end]);
-        $entries = $stmt->fetchAll();
+        $users = $db->query('SELECT id, name, role, standard_hours FROM users WHERE is_active = 1 AND is_deleted = 0 ORDER BY name ASC')->fetchAll();
         $weeks = getWeeksInRange($start, $end);
+        $queryStart = !empty($weeks) ? $weeks[0]['start'] : $start;
+        $queryEnd = !empty($weeks) ? end($weeks)['end'] : $end;
+        $stmt = $db->prepare('SELECT user_id, date, hours FROM timesheet_entries WHERE date BETWEEN ? AND ?');
+        $stmt->execute([$queryStart, $queryEnd]);
+        $entries = $stmt->fetchAll();
         $subsList = [];
-        foreach($weeks as $w) {
-            $sStmt = $db->prepare("SELECT user_id, status FROM timesheet_submissions WHERE year = ? AND week = ?");
-            $sStmt->execute([$w['year'], $w['week']]);
-            while($row = $sStmt->fetch()) {
-                $subsList[$row['user_id'] . '-' . $w['year'] . '-' . $w['week']] = $row['status'];
-            }
+        foreach ($weeks as $w) {
+          $sStmt = $db->prepare('SELECT user_id, status FROM timesheet_submissions WHERE year = ? AND week = ?');
+          $sStmt->execute([$w['year'], $w['week']]);
+          while ($row = $sStmt->fetch()) {
+            $subsList[$row['user_id'] . '-' . $w['year'] . '-' . $w['week']] = $row['status'];
+          }
         }
         $result = [];
         foreach ($users as $u) {
-            foreach ($weeks as $w) {
-                $hrs = 0;
-                foreach($entries as $e) {
-                    if ($e['user_id'] == $u['id'] && $e['date'] >= $w['start'] && $e['date'] <= $w['end']) {
-                        $hrs += (float)$e['hours'];
-                    }
-                }
-                $subKey = $u['id'] . '-' . $w['year'] . '-' . $w['week'];
-                $status = $subsList[$subKey] ?? null;
-                if (!$status) {
-                    if ($hrs >= $u['standard_hours']) $status = 'completed';
-                    elseif ($hrs > 0) $status = 'incomplete';
-                    else $status = 'missing';
-                }
-                $result[] = [
-                    'user_id' => $u['id'],
-                    'user_name' => $u['name'],
-                    'date_label' => date('M j', strtotime($w['start'])) . ' - ' . date('M j, Y', strtotime($w['end'])),
-                    'date_start' => $w['start'],
-                    'date_end' => $w['end'],
-                    'total_hours' => $hrs,
-                    'std_hours' => $u['standard_hours'],
-                    'status' => $status
-                ];
+          foreach ($weeks as $w) {
+            $hrs = 0;
+            foreach ($entries as $e) {
+              if ($e['user_id'] == $u['id'] && $e['date'] >= $w['start'] && $e['date'] <= $w['end']) {
+                $hrs += (float) $e['hours'];
+              }
             }
+            $subKey = $u['id'] . '-' . $w['year'] . '-' . $w['week'];
+            $status = $subsList[$subKey] ?? null;
+            if (!$status) {
+              if ($hrs >= $u['standard_hours'])
+                $status = 'completed';
+              elseif ($hrs > 0)
+                $status = 'incomplete';
+              else
+                $status = 'missing';
+            }
+            $result[] = [
+              'user_id' => $u['id'],
+              'user_name' => $u['name'],
+              'role' => $u['role'],
+              'date_label' => date('M j', strtotime($w['start'])) . ' - ' . date('M j, Y', strtotime($w['end'])),
+              'date_start' => $w['start'],
+              'date_end' => $w['end'],
+              'total_hours' => $hrs,
+              'std_hours' => $u['standard_hours'],
+              'status' => $status
+            ];
+          }
         }
         jsonOut(['success' => true, 'overview' => $result]);
       } catch (PDOException $e) {
@@ -972,17 +991,110 @@ if ($api !== '') {
       requireAdmin();
       $start = $_GET['start'] ?? date('Y-m-01');
       $end = $_GET['end'] ?? date('Y-m-t');
+      $userId = (int) ($_GET['user_id'] ?? 0);
+      $projectId = (int) ($_GET['project_id'] ?? 0);
+      $workTypeId = (int) ($_GET['work_type_id'] ?? 0);
       try {
         $db = getDB();
-        $stmt = $db->prepare('SELECT p.name as project_name, SUM(te.hours) as total_hours FROM timesheet_entries te JOIN projects p ON p.id = te.project_id WHERE te.date BETWEEN ? AND ? GROUP BY p.id ORDER BY total_hours DESC');
-        $stmt->execute([$start, $end]);
-        $projectStats = $stmt->fetchAll();
-        $stmt = $db->prepare('SELECT u.name as user_name, SUM(te.hours) as total_hours FROM timesheet_entries te JOIN users u ON u.id = te.user_id WHERE te.date BETWEEN ? AND ? GROUP BY u.id ORDER BY total_hours DESC');
-        $stmt->execute([$start, $end]);
-        $userStats = $stmt->fetchAll();
-        jsonOut(['success' => true, 'projects' => $projectStats, 'users' => $userStats]);
+        $where = 'te.date BETWEEN ? AND ?';
+        $params = [$start, $end];
+        if ($userId > 0) {
+          $where .= ' AND te.user_id = ?';
+          $params[] = $userId;
+        }
+        if ($projectId > 0) {
+          $where .= ' AND te.project_id = ?';
+          $params[] = $projectId;
+        }
+        if ($workTypeId > 0) {
+          $where .= ' AND te.work_type_id = ?';
+          $params[] = $workTypeId;
+        }
+
+        $stmt = $db->prepare("SELECT SUM(hours) as total_hours, COUNT(id) as total_entries, COUNT(DISTINCT user_id) as total_users, COUNT(DISTINCT project_id) as total_projects FROM timesheet_entries te WHERE $where");
+        $stmt->execute($params);
+        $summary = $stmt->fetch();
+
+        $stmt = $db->prepare("SELECT p.name as label, SUM(te.hours) as value FROM timesheet_entries te JOIN projects p ON p.id = te.project_id WHERE $where GROUP BY p.id ORDER BY value DESC");
+        $stmt->execute($params);
+        $byProject = $stmt->fetchAll();
+
+        $stmt = $db->prepare("SELECT u.name as label, SUM(te.hours) as value FROM timesheet_entries te JOIN users u ON u.id = te.user_id WHERE $where GROUP BY u.id ORDER BY value DESC");
+        $stmt->execute($params);
+        $byUser = $stmt->fetchAll();
+
+        $stmt = $db->prepare("SELECT wt.name as label, SUM(te.hours) as value FROM timesheet_entries te JOIN work_types wt ON wt.id = te.work_type_id WHERE $where GROUP BY wt.id ORDER BY value DESC");
+        $stmt->execute($params);
+        $byWorkType = $stmt->fetchAll();
+
+        $stmt = $db->prepare("SELECT te.date as label, SUM(te.hours) as value FROM timesheet_entries te WHERE $where GROUP BY te.date ORDER BY te.date ASC");
+        $stmt->execute($params);
+        $byDate = $stmt->fetchAll();
+
+        $stmt = $db->prepare("SELECT te.date, u.name as user_name, p.name as project_name, wt.name as work_type_name, te.hours, te.description FROM timesheet_entries te JOIN users u ON u.id = te.user_id JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE $where ORDER BY te.date DESC, te.id DESC LIMIT 500");
+        $stmt->execute($params);
+        $details = $stmt->fetchAll();
+
+        $users = $db->query('SELECT id, name, role FROM users WHERE is_deleted = 0 ORDER BY name ASC')->fetchAll();
+        $projects = $db->query('SELECT id, name FROM projects ORDER BY name ASC')->fetchAll();
+        $workTypes = $db->query('SELECT id, name FROM work_types ORDER BY name ASC')->fetchAll();
+
+        jsonOut([
+          'success' => true,
+          'summary' => [
+            'total_hours' => (float) $summary['total_hours'],
+            'total_entries' => (int) $summary['total_entries'],
+            'total_users' => (int) $summary['total_users'],
+            'total_projects' => (int) $summary['total_projects'],
+          ],
+          'by_project' => $byProject,
+          'by_user' => $byUser,
+          'by_work_type' => $byWorkType,
+          'by_date' => $byDate,
+          'details' => $details,
+          'filters' => ['users' => $users, 'projects' => $projects, 'work_types' => $workTypes]
+        ]);
       } catch (PDOException $e) {
         jsonError('Failed to load reports.', 500);
+      }
+      break;
+    case 'export_master_csv':
+      requireAdmin();
+      $start = $_GET['start'] ?? date('Y-01-01');
+      $end = $_GET['end'] ?? date('Y-12-31');
+      $userId = (int) ($_GET['user_id'] ?? 0);
+      $projectId = (int) ($_GET['project_id'] ?? 0);
+      $workTypeId = (int) ($_GET['work_type_id'] ?? 0);
+      try {
+        $db = getDB();
+        $where = 'te.date BETWEEN ? AND ?';
+        $params = [$start, $end];
+        if ($userId > 0) {
+          $where .= ' AND te.user_id = ?';
+          $params[] = $userId;
+        }
+        if ($projectId > 0) {
+          $where .= ' AND te.project_id = ?';
+          $params[] = $projectId;
+        }
+        if ($workTypeId > 0) {
+          $where .= ' AND te.work_type_id = ?';
+          $params[] = $workTypeId;
+        }
+        $stmt = $db->prepare("SELECT te.date, u.name as user_name, p.name as project_name, wt.name as work_type_name, te.hours, te.description FROM timesheet_entries te JOIN users u ON u.id = te.user_id JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE $where ORDER BY te.date ASC");
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="master_report_' . date('Ymd') . '.csv"');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Date', 'User', 'Project', 'Work Type', 'Hours', 'Description']);
+        foreach ($rows as $r) {
+          fputcsv($out, $r);
+        }
+        fclose($out);
+        exit;
+      } catch (PDOException $e) {
+        jsonError('Export failed.', 500);
       }
       break;
     case 'export_csv':
@@ -1011,7 +1123,7 @@ if ($api !== '') {
     case 'manifest':
       header('Content-Type: application/manifest+json');
       $icon = 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" fill="#2563EB"/><text x="256" y="290" font-family="sans-serif" font-size="200" font-weight="bold" fill="#fff" text-anchor="middle">tt</text></svg>');
-      echo json_encode(['name'=>'ticktock','short_name'=>'ticktock','start_url'=>'.','display'=>'standalone','background_color'=>'#2563EB','theme_color'=>'#2563EB','icons'=>[['src'=>$icon,'sizes'=>'512x512','type'=>'image/svg+xml']]]);
+      echo json_encode(['name' => 'ticktock', 'short_name' => 'ticktock', 'start_url' => '.', 'display' => 'standalone', 'background_color' => '#2563EB', 'theme_color' => '#2563EB', 'icons' => [['src' => $icon, 'sizes' => '512x512', 'type' => 'image/svg+xml']]]);
       exit;
     case 'sw':
       header('Content-Type: application/javascript');
@@ -1594,24 +1706,73 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
       Back to Admin
     </button>
-    <div class="page-title">Global Reports</div>
-    <div class="filters-bar">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+        <div class="page-title" style="margin-bottom:0">Master Reports & Analytics</div>
+        <button class="btn-outline" id="btn-export-report" style="padding:0.5rem 1rem;font-size:0.8rem">Export CSV</button>
+    </div>
+    <div class="filters-bar" style="background:#fff;padding:1rem;border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:var(--shadow-sm);margin-bottom:1.5rem">
         <input type="date" id="report-start" class="filter-select">
         <input type="date" id="report-end" class="filter-select">
+        <select id="report-user" class="filter-select"><option value="">All Users</option></select>
+        <select id="report-project" class="filter-select"><option value="">All Projects</option></select>
+        <select id="report-work-type" class="filter-select"><option value="">All Work Types</option></select>
         <button class="btn-blue-sm" id="btn-run-report">Run Report</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
-        <div class="card">
-            <div style="padding:1rem;font-weight:700;border-bottom:1px solid var(--border)">Hours by Project</div>
-            <div class="table-wrap">
-                <table><thead><tr><th>PROJECT</th><th>HOURS</th></tr></thead><tbody id="report-projects-tbody"></tbody></table>
-            </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:1rem;margin-bottom:1.5rem">
+        <div class="card" style="padding:1.5rem;text-align:center">
+            <div style="font-size:0.875rem;color:var(--text-secondary);font-weight:700;text-transform:uppercase">Total Hours</div>
+            <div style="font-size:2rem;font-weight:800;color:var(--blue)" id="rpt-summary-hours">0</div>
         </div>
-        <div class="card">
-            <div style="padding:1rem;font-weight:700;border-bottom:1px solid var(--border)">Hours by User</div>
-            <div class="table-wrap">
-                <table><thead><tr><th>USER</th><th>HOURS</th></tr></thead><tbody id="report-users-tbody"></tbody></table>
-            </div>
+        <div class="card" style="padding:1.5rem;text-align:center">
+            <div style="font-size:0.875rem;color:var(--text-secondary);font-weight:700;text-transform:uppercase">Total Entries</div>
+            <div style="font-size:2rem;font-weight:800;color:var(--text-primary)" id="rpt-summary-entries">0</div>
+        </div>
+        <div class="card" style="padding:1.5rem;text-align:center">
+            <div style="font-size:0.875rem;color:var(--text-secondary);font-weight:700;text-transform:uppercase">Active Users</div>
+            <div style="font-size:2rem;font-weight:800;color:var(--green)" id="rpt-summary-users">0</div>
+        </div>
+        <div class="card" style="padding:1.5rem;text-align:center">
+            <div style="font-size:0.875rem;color:var(--text-secondary);font-weight:700;text-transform:uppercase">Projects</div>
+            <div style="font-size:2rem;font-weight:800;color:var(--yellow)" id="rpt-summary-projects">0</div>
+        </div>
+    </div>
+    <div class="card" style="margin-bottom:1.5rem;padding:1.5rem">
+        <div style="font-weight:700;margin-bottom:1rem">Hours Trend (Daily)</div>
+        <div style="height:250px"><canvas id="rpt-chart-trend"></canvas></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:1.5rem;margin-bottom:1.5rem">
+        <div class="card" style="padding:1.5rem">
+            <div style="font-weight:700;margin-bottom:1rem">By Project</div>
+            <div style="height:220px"><canvas id="rpt-chart-project"></canvas></div>
+        </div>
+        <div class="card" style="padding:1.5rem">
+            <div style="font-weight:700;margin-bottom:1rem">By Work Type</div>
+            <div style="height:220px"><canvas id="rpt-chart-type"></canvas></div>
+        </div>
+        <div class="card" style="padding:1.5rem">
+            <div style="font-weight:700;margin-bottom:1rem">By User</div>
+            <div style="height:220px"><canvas id="rpt-chart-user"></canvas></div>
+        </div>
+    </div>
+    <div class="card">
+        <div style="padding:1.25rem;font-weight:700;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <span>Detailed Entries</span>
+            <span style="font-size:0.8rem;font-weight:500;color:var(--text-muted)">Max 500 records</span>
+        </div>
+        <div class="table-wrap">
+            <table id="rpt-details-table">
+                <thead>
+                    <tr>
+                        <th class="sortable sorted" data-col="date">DATE <span class="sort-arrow">↕</span></th>
+                        <th class="sortable" data-col="user_name">USER <span class="sort-arrow">↕</span></th>
+                        <th class="sortable" data-col="project_name">PROJECT <span class="sort-arrow">↕</span></th>
+                        <th class="sortable" data-col="work_type_name">TYPE <span class="sort-arrow">↕</span></th>
+                        <th class="sortable" data-col="hours">HOURS <span class="sort-arrow">↕</span></th>
+                        <th>DESCRIPTION</th>
+                    </tr>
+                </thead>
+                <tbody id="rpt-details-tbody"></tbody>
+            </table>
         </div>
     </div>
   </div>
@@ -1791,6 +1952,7 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
 (function(){
@@ -2116,7 +2278,7 @@ el('btn-admin-overview-menu').addEventListener('click', function(){
     if(d.success){
       var sel = el('overview-user-filter');
       sel.innerHTML = '<option value="">All Users</option>';
-      d.users.forEach(function(u){ if(u.is_deleted==0) sel.innerHTML += '<option value="'+u.id+'">'+escHtml(u.name)+'</option>'; });
+      d.users.forEach(function(u){ if(u.is_deleted==0) sel.innerHTML += '<option value="'+u.id+'">'+escHtml(u.name)+(u.role==='admin'?' (Admin)':'')+'</option>'; });
     }
   });
   loadAdminOverview();
@@ -2147,7 +2309,8 @@ function renderOverview(){
     else if(r.status === 'completed') badge = '<span class="badge badge-completed">COMPLETED</span>';
     else if(r.status === 'incomplete') badge = '<span class="badge badge-incomplete">INCOMPLETE</span>';
     else badge = '<span class="badge badge-missing">MISSING</span>';
-    html += '<tr class="animate__animated animate__fadeIn"><td>'+escHtml(r.user_name)+'</td><td>'+r.date_label+'</td><td>'+r.total_hours+' / '+r.std_hours+'h</td><td>'+badge+'</td>';
+    var roleBadge = r.role === 'admin' ? ' <span class="badge" style="background:var(--blue-light);color:var(--blue);font-size:0.6rem;padding:0.15rem 0.4rem;margin-left:0.4rem">ADMIN</span>' : '';
+    html += '<tr class="animate__animated animate__fadeIn"><td>'+escHtml(r.user_name)+roleBadge+'</td><td>'+r.date_label+'</td><td>'+r.total_hours+' / '+r.std_hours+'h</td><td>'+badge+'</td>';
     html += '<td><button class="action-link view-ov-sub" data-uid="'+r.user_id+'" data-uname="'+escHtml(r.user_name)+'" data-start="'+r.date_start+'" data-end="'+r.date_end+'">View Details</button></td></tr>';
   });
   tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center">No records match your filters.</td></tr>';
@@ -2186,12 +2349,31 @@ el('btn-admin-subs').addEventListener('click', function(){
   showPage('page-admin-submissions');
   loadAdminSubmissions();
 });
+var rptTrendChart, rptProjectChart, rptTypeChart, rptUserChart;
+var RPT_DETAILS = [];
+var RPT_SORT_COL = 'date';
+var RPT_SORT_DIR = 'desc';
+
+function initCharts(){
+  if(rptTrendChart) rptTrendChart.destroy();
+  if(rptProjectChart) rptProjectChart.destroy();
+  if(rptTypeChart) rptTypeChart.destroy();
+  if(rptUserChart) rptUserChart.destroy();
+  var ctxTrend = el('rpt-chart-trend').getContext('2d');
+  rptTrendChart = new Chart(ctxTrend, { type: 'line', data: { labels:[], datasets:[{label:'Hours', data:[], borderColor:'#2563EB', backgroundColor:'rgba(37,99,235,0.1)', fill:true, tension:0.3, pointRadius:3}] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} } });
+  var pieOpts = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'right', labels:{boxWidth:12, font:{size:10}}} } };
+  rptProjectChart = new Chart(el('rpt-chart-project').getContext('2d'), { type: 'doughnut', data: { labels:[], datasets:[{data:[], backgroundColor:['#2563EB','#059669','#D97706','#DB2777','#8B5CF6','#F59E0B','#10B981']}] }, options:pieOpts });
+  rptTypeChart = new Chart(el('rpt-chart-type').getContext('2d'), { type: 'pie', data: { labels:[], datasets:[{data:[], backgroundColor:['#8B5CF6','#F59E0B','#10B981','#2563EB','#059669','#D97706','#DB2777']}] }, options:pieOpts });
+  rptUserChart = new Chart(el('rpt-chart-user').getContext('2d'), { type: 'bar', data: { labels:[], datasets:[{label:'Hours', data:[], backgroundColor:'#059669', borderRadius:4}] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} } });
+}
+
 el('btn-admin-reports').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   showPage('page-admin-reports');
   var d = new Date(), y = d.getFullYear(), m = d.getMonth();
   el('report-start').value = y + '-' + String(m+1).padStart(2,'0') + '-01';
   el('report-end').value = y + '-' + String(m+1).padStart(2,'0') + '-' + String(new Date(y, m+1, 0).getDate()).padStart(2,'0');
+  if(!rptTrendChart && typeof Chart !== 'undefined') initCharts();
   el('btn-run-report').click();
 });
 el('btn-admin-settings').addEventListener('click', function(){
@@ -2504,18 +2686,82 @@ function reviewSub(id, status, reason){
 }
 el('btn-run-report').addEventListener('click', function(){
   var s = el('report-start').value, e = el('report-end').value;
+  var u = el('report-user').value, p = el('report-project').value, w = el('report-work-type').value;
   if(!s || !e) return;
-  el('report-projects-tbody').innerHTML = '<tr><td colspan="2" style="text-align:center">Loading...</td></tr>';
-  el('report-users-tbody').innerHTML = '<tr><td colspan="2" style="text-align:center">Loading...</td></tr>';
-  apiCall('reports&start='+s+'&end='+e).then(function(d){
+  el('rpt-details-tbody').innerHTML = '<tr><td colspan="6" style="text-align:center"><span class="loading-spinner" style="border-color:var(--blue);border-top-color:transparent"></span> Loading data...</td></tr>';
+  apiCall('reports&start='+s+'&end='+e+'&user_id='+u+'&project_id='+p+'&work_type_id='+w).then(function(d){
     if(d.success){
-        var ph = '', uh = '';
-        d.projects.forEach(function(p){ ph += '<tr><td>'+escHtml(p.project_name)+'</td><td>'+p.total_hours+'h</td></tr>'; });
-        d.users.forEach(function(u){ uh += '<tr><td>'+escHtml(u.user_name)+'</td><td>'+u.total_hours+'h</td></tr>'; });
-        el('report-projects-tbody').innerHTML = ph || '<tr><td colspan="2">No data</td></tr>';
-        el('report-users-tbody').innerHTML = uh || '<tr><td colspan="2">No data</td></tr>';
+        if(el('report-user').options.length <= 1) {
+            d.filters.users.forEach(function(x){ el('report-user').innerHTML += '<option value="'+x.id+'">'+escHtml(x.name)+(x.role==='admin'?' (Admin)':'')+'</option>'; });
+            d.filters.projects.forEach(function(x){ el('report-project').innerHTML += '<option value="'+x.id+'">'+escHtml(x.name)+'</option>'; });
+            d.filters.work_types.forEach(function(x){ el('report-work-type').innerHTML += '<option value="'+x.id+'">'+escHtml(x.name)+'</option>'; });
+        }
+        el('rpt-summary-hours').textContent = d.summary.total_hours.toFixed(1);
+        el('rpt-summary-entries').textContent = d.summary.total_entries;
+        el('rpt-summary-users').textContent = d.summary.total_users;
+        el('rpt-summary-projects').textContent = d.summary.total_projects;
+        if(rptTrendChart) {
+            rptTrendChart.data.labels = d.by_date.map(function(x){ return formatDayLabel(x.label); });
+            rptTrendChart.data.datasets[0].data = d.by_date.map(function(x){ return parseFloat(x.value); });
+            rptTrendChart.update();
+            rptProjectChart.data.labels = d.by_project.map(function(x){ return x.label; });
+            rptProjectChart.data.datasets[0].data = d.by_project.map(function(x){ return parseFloat(x.value); });
+            rptProjectChart.update();
+            rptTypeChart.data.labels = d.by_work_type.map(function(x){ return x.label; });
+            rptTypeChart.data.datasets[0].data = d.by_work_type.map(function(x){ return parseFloat(x.value); });
+            rptTypeChart.update();
+            rptUserChart.data.labels = d.by_user.map(function(x){ return x.label; });
+            rptUserChart.data.datasets[0].data = d.by_user.map(function(x){ return parseFloat(x.value); });
+            rptUserChart.update();
+        }
+        RPT_DETAILS = d.details;
+        renderRptDetails();
+    } else {
+        el('rpt-details-tbody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--red)">Failed to load data.</td></tr>';
     }
   });
+});
+
+function renderRptDetails(){
+    var tbody = el('rpt-details-tbody');
+    var data = RPT_DETAILS.slice();
+    data.sort(function(a,b){
+        var av = a[RPT_SORT_COL], bv = b[RPT_SORT_COL];
+        if(RPT_SORT_COL === 'hours') { av = parseFloat(av); bv = parseFloat(bv); }
+        else { av = String(av).toLowerCase(); bv = String(bv).toLowerCase(); }
+        if(av < bv) return RPT_SORT_DIR === 'asc' ? -1 : 1;
+        if(av > bv) return RPT_SORT_DIR === 'asc' ? 1 : -1;
+        return 0;
+    });
+    var h = '';
+    data.forEach(function(row){
+        h += '<tr class="animate__animated animate__fadeIn">';
+        h += '<td>'+formatDayLabel(row.date)+'</td>';
+        h += '<td>'+escHtml(row.user_name)+'</td>';
+        h += '<td><span class="project-chip">'+escHtml(row.project_name)+'</span></td>';
+        h += '<td>'+escHtml(row.work_type_name)+'</td>';
+        h += '<td><strong>'+parseFloat(row.hours)+'h</strong></td>';
+        h += '<td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(row.description)+'">'+escHtml(row.description)+'</td>';
+        h += '</tr>';
+    });
+    tbody.innerHTML = h || '<tr><td colspan="6" style="text-align:center">No entries found for the selected criteria.</td></tr>';
+}
+
+document.querySelectorAll('#rpt-details-table th.sortable').forEach(function(th){
+  th.addEventListener('click', function(){
+    var col = this.dataset.col;
+    if(RPT_SORT_COL === col){ RPT_SORT_DIR = RPT_SORT_DIR==='asc'?'desc':'asc'; }
+    else { RPT_SORT_COL = col; RPT_SORT_DIR = 'desc'; }
+    document.querySelectorAll('#rpt-details-table th.sortable').forEach(function(t){ t.classList.remove('sorted'); });
+    this.classList.add('sorted');
+    renderRptDetails();
+  });
+});
+
+el('btn-export-report').addEventListener('click', function(){
+    var s = el('report-start').value, e = el('report-end').value;
+    var u = el('report-user').value, p = el('report-project').value, w = el('report-work-type').value;
+    window.location.href = '?api=export_master_csv&start='+s+'&end='+e+'&user_id='+u+'&project_id='+p+'&work_type_id='+w;
 });
 el('btn-submit-week').addEventListener('click', function(){
     Swal.fire({title:'Submit for approval?', text:'This will lock your timesheet for this week.', icon:'question', showCancelButton:true}).then(function(r){
