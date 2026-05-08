@@ -774,12 +774,12 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 
 <div id="app-login">
   <div class="login-left">
-    <div class="login-form-wrap animate__animated animate__fadeInUp" id="login-form-wrap">
+    <form class="login-form-wrap animate__animated animate__fadeInUp" id="login-form-wrap" onsubmit="event.preventDefault();">
       <h2>Welcome back</h2>
       <p>Sign in to your ticktock account</p>
       <div class="form-group">
         <label for="login-email">Email</label>
-        <input type="email" id="login-email" class="form-control" placeholder="name@example.com" autocomplete="email">
+        <input type="email" id="login-email" class="form-control" placeholder="name@example.com" autocomplete="username">
         <div class="field-error" id="err-email"></div>
       </div>
       <div class="form-group">
@@ -799,12 +799,12 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
         <input type="checkbox" id="remember-me">
         <label for="remember-me">Remember me</label>
       </div>
-      <button class="btn-primary" id="btn-signin">Sign in</button>
+      <button type="submit" class="btn-primary" id="btn-signin">Sign in</button>
       <div class="field-error visible" id="err-login" style="margin-top:.75rem;font-size:.8rem"></div>
       <div style="margin-top:1.5rem;text-align:center;font-size:.875rem;color:var(--text-secondary)">
-        Don't have an account? <button class="btn-ghost" id="btn-show-register">Register here</button>
+        Don't have an account? <button type="button" class="btn-ghost" id="btn-show-register">Register here</button>
       </div>
-    </div>
+    </form>
 
     <div class="login-form-wrap animate__animated animate__fadeInUp" id="register-wrap" style="display:none">
       <h2>Create account</h2>
