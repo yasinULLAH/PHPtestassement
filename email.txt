@@ -1,0 +1,53 @@
+Subject: Submission: Frontend Technical Assignment - Timesheet Management Suite - Yasin Ullah
+
+Dear Sanam Iqbal,
+
+I hope this email finds you well.
+
+I am pleased to submit my completed Frontend Technical Assignment for the position at TenTwenty. 
+
+To provide a comprehensive solution that demonstrates both my architectural versatility and commitment to high-performance standards, I have developed two distinct versions of the "ticktock" application: a Client-Side PWA and a Server-Side Enterprise Suite.
+
+### 🔗 Submission Links
+
+*   **GitHub Repository:** [https://github.com/yasinullah/PHPtestassement](https://github.com/yasinullah/PHPtestassement)
+*   **Live Deployed PWA (Primary Demo):** [https://yasinullah.github.io/PHPtestassement/](https://yasinullah.github.io/PHPtestassement/)
+*   **Live Enterprise PHP Link (Cloudflare Tunnel):** [https://yasinnew.shop/PHPtestassement/index.php](https://yasinnew.shop/PHPtestassement/index.php)
+    *(Note: This link tunnels directly to my local environment for testing the server-side features. If it appears offline, please contact me via phone and I will fire it up immediately.)*
+
+### 🛠️ Tech Stack & Architectural Choice
+While the assignment recommended React/Next.js, I chose to implement this suite using **Native PHP 8.0 and Vanilla JavaScript (ES6+)**. 
+
+**Why Native?**
+1.  **Zero Dependency Bloat:** No overhead from heavy frameworks or thousands of sub-packages.
+2.  **Unmatched Performance:** Instantaneous load times and near-zero execution latency.
+3.  **Future-Proofing:** Built on core web standards that remain stable for decades.
+4.  **Full Control:** Surgical precision in UI implementation and state management.
+
+### ✨ Key Features Delivered
+*   **Registration System:** Secure flows for both browser-local (PWA) and admin-approved (Enterprise) accounts.
+*   **Admin Dashboard:** Full user management suite (Approve/Disapprove, Role management, CRUD).
+*   **PWA Integration:** 100% offline functionality and standalone installation support.
+*   **Data Portability:** Client-side Backup (Export to JSON) and Restore (Import) functionality.
+*   **UI/UX:** Pixel-perfect implementation of the provided Figma design with a fully responsive grid.
+
+### 🔑 Test Credentials (Enterprise PHP Version)
+*   **Admin Email:** `john.doe@tentwenty.me` | **Password:** `password`
+*   **User Email:** `sarah.connor@tentwenty.me` | **Password:** `password`
+
+### 📞 Support & Further Engagement
+If you encounter any issues with the PHP environment setup or the Cloudflare tunnel, please feel free to call me directly at **0313-9842219**. I am available to provide immediate assistance.
+
+Furthermore, if your team has additional time, I would be delighted to share some of my other **Enterprise-Level Applications** via my secure Cloudflare tunnel. I believe these would provide deeper insight into my experience with complex, large-scale systems.
+
+I have attached a screen recording of the application’s core workflow to this submission for your convenience.
+
+Thank you for this opportunity. I look forward to your feedback.
+
+Cordial Regards,
+
+**Yasin Ullah**
+Bannu Software Solutions
+🌐 [www.yasinbss.com](https://www.yasinbss.com)
+📱 M: 0313-9842219
+📧 E: yasin@yasinbss.com
