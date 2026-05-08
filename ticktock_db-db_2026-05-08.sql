@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: May 08, 2026 at 09:58 AM
+-- Generation Time: May 08, 2026 at 10:25 AM
 -- Server version: 8.2.0
 -- PHP Version: 8.3.0
 
@@ -39,10 +39,11 @@ CREATE TABLE `captcha_store` (
 --
 
 INSERT INTO `captcha_store` (`id`, `token`, `answer`, `expires_at`) VALUES
-(45, '8749637b394b3fac5b08f980609eb175', '2', '2026-05-08 14:03:59'),
-(47, 'a3c47b35aad2ddef68d0347a6420b56a', '3', '2026-05-08 14:06:06'),
-(48, 'ba0dfba7e122319a32bc48c0842c8be3', '12', '2026-05-08 14:06:23'),
-(49, '0aa7a2835baa71cc6b93664ad91c576b', '12', '2026-05-08 14:08:10');
+(58, '5751cca94f5dd2640a27f80ad0adf50d', '11', '2026-05-08 14:25:01'),
+(61, '0dd4a667db46da35539c8597a2d9b372', '6', '2026-05-08 14:28:37'),
+(62, 'bb735cab12d8c7755f1aab3b8a77ed73', '16', '2026-05-08 14:30:42'),
+(63, 'ec8c64608fb1bfc8bf097a78ec15afff', '13', '2026-05-08 14:32:14'),
+(64, '9d7ef5c9d3fc0c22ee74580d42d6b391', '10', '2026-05-08 14:34:55');
 
 -- --------------------------------------------------------
 
@@ -77,7 +78,8 @@ INSERT INTO `projects` (`id`, `name`, `is_active`, `created_at`) VALUES
 (1, 'Homepage Development', 1, '2026-05-08 06:37:32'),
 (2, 'Mobile App Redesign', 1, '2026-05-08 06:37:32'),
 (3, 'API Integration Layer', 1, '2026-05-08 06:37:32'),
-(4, 'Client Portal v2', 1, '2026-05-08 06:37:32');
+(4, 'Client Portal v2', 1, '2026-05-08 06:37:32'),
+(5, 'New project 2025 Web App', 1, '2026-05-08 09:24:52');
 
 -- --------------------------------------------------------
 
@@ -135,7 +137,8 @@ INSERT INTO `timesheet_entries` (`id`, `user_id`, `date`, `project_id`, `work_ty
 (30, 2, '2024-01-03', 1, 2, NULL, 'Patched broken image lazy loading on the homepage that was causing CLS score degradation in Lighthouse.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
 (31, 2, '2024-01-04', 2, 1, NULL, 'Implemented user authentication flow in mobile app with biometric login and secure token storage.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
 (32, 2, '2024-01-05', 3, 5, NULL, 'Tested all API v2 integration points against staging environment and filed bug reports for 5 endpoints.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(33, 1, '2025-12-29', 3, 2, NULL, 'this is new', 1.00, '2026-05-08 07:01:02', '2026-05-08 07:01:02');
+(33, 1, '2025-12-29', 3, 2, NULL, 'this is new', 1.00, '2026-05-08 07:01:02', '2026-05-08 07:01:02'),
+(34, 5, '2025-12-29', 3, 8, 1, 'i have made a meeting with the client', 2.00, '2026-05-08 09:11:25', '2026-05-08 09:14:47');
 
 -- --------------------------------------------------------
 
@@ -154,6 +157,13 @@ CREATE TABLE `timesheet_submissions` (
   `reviewed_at` timestamp NULL DEFAULT NULL,
   `reviewed_by` int UNSIGNED DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `timesheet_submissions`
+--
+
+INSERT INTO `timesheet_submissions` (`id`, `user_id`, `year`, `week`, `status`, `rejection_reason`, `submitted_at`, `reviewed_at`, `reviewed_by`) VALUES
+(1, 5, 2026, 1, 'approved', NULL, '2026-05-08 09:14:47', '2026-05-08 09:18:52', 1);
 
 -- --------------------------------------------------------
 
@@ -214,7 +224,8 @@ INSERT INTO `work_types` (`id`, `name`, `is_active`, `created_at`) VALUES
 (5, 'Testing & QA', 1, '2026-05-08 06:37:32'),
 (6, 'Documentation', 1, '2026-05-08 06:37:32'),
 (7, 'Deployment & DevOps', 1, '2026-05-08 06:37:32'),
-(8, 'Client Meeting', 1, '2026-05-08 06:37:32');
+(8, 'Client Meeting', 1, '2026-05-08 06:37:32'),
+(9, 'Eating and Drinking and Talkin', 1, '2026-05-08 09:25:20');
 
 --
 -- Indexes for dumped tables
@@ -281,31 +292,31 @@ ALTER TABLE `work_types`
 -- AUTO_INCREMENT for table `captcha_store`
 --
 ALTER TABLE `captcha_store`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=50;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=65;
 
 --
 -- AUTO_INCREMENT for table `login_attempts`
 --
 ALTER TABLE `login_attempts`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `projects`
 --
 ALTER TABLE `projects`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `timesheet_entries`
 --
 ALTER TABLE `timesheet_entries`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
 
 --
 -- AUTO_INCREMENT for table `timesheet_submissions`
 --
 ALTER TABLE `timesheet_submissions`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -317,7 +328,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `work_types`
 --
 ALTER TABLE `work_types`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- Constraints for dumped tables
