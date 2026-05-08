@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: May 08, 2026 at 10:53 AM
+-- Generation Time: May 08, 2026 at 02:36 PM
 -- Server version: 8.2.0
 -- PHP Version: 8.3.0
 
@@ -39,9 +39,12 @@ CREATE TABLE `captcha_store` (
 --
 
 INSERT INTO `captcha_store` (`id`, `token`, `answer`, `expires_at`) VALUES
-(69, '7d8098eb97ba0699cc71fd788a0045b5', '9', '2026-05-08 14:52:38'),
-(70, '781822715b32434542d2d09430f394d1', '6', '2026-05-08 14:52:54'),
-(71, '0d678a8177a3e02a84c15d4f4b06bb60', '10', '2026-05-08 15:00:17');
+(114, 'e03b6b0b164de397f3ceece5fe486c58', '9', '2026-05-08 18:34:58'),
+(115, 'c7b3d736ba865481c65a906e773ee06a', '7', '2026-05-08 18:35:05'),
+(116, 'a5a01e5c36e1785ad6a3aa8d2301e31f', '9', '2026-05-08 18:39:06'),
+(117, '819a0ad03b2237d553b5992fa43dd7ed', '16', '2026-05-08 18:39:23'),
+(118, 'ebe90e8188bc74425d37b79967b2351f', '7', '2026-05-08 18:42:04'),
+(119, 'fc5b201d51af7e1b983112c322b66fd6', '11', '2026-05-08 18:44:07');
 
 -- --------------------------------------------------------
 
@@ -157,7 +160,14 @@ INSERT INTO `timesheet_entries` (`id`, `user_id`, `date`, `project_id`, `work_ty
 (33, 1, '2025-12-29', 3, 2, NULL, 'this is new', 1.00, '2026-05-08 07:01:02', '2026-05-08 07:01:02'),
 (34, 5, '2025-12-29', 3, 8, 1, 'i have made a meeting with the client', 2.00, '2026-05-08 09:11:25', '2026-05-08 09:14:47'),
 (35, 5, '2026-01-05', 3, 2, NULL, 'Done', 1.00, '2026-05-08 09:37:58', '2026-05-08 09:37:58'),
-(36, 5, '2026-01-05', 4, 8, NULL, 'Done', 2.00, '2026-05-08 09:38:11', '2026-05-08 09:38:11');
+(36, 5, '2026-01-05', 4, 8, NULL, 'Done', 2.00, '2026-05-08 09:38:11', '2026-05-08 09:38:11'),
+(37, 1, '2026-04-27', 4, 2, 2, 'Done', 4.00, '2026-05-08 13:10:31', '2026-05-08 13:10:55'),
+(38, 1, '2026-04-27', 4, 8, 2, 'Done', 1.50, '2026-05-08 13:10:41', '2026-05-08 13:10:55'),
+(39, 1, '2026-04-28', 2, 8, 2, 'Done', 1.00, '2026-05-08 13:10:50', '2026-05-08 13:10:55'),
+(40, 5, '2026-05-04', 3, 8, 3, 'newd', 1.00, '2026-05-08 13:13:48', '2026-05-08 13:14:23'),
+(41, 5, '2026-05-04', 1, 9, 3, 'Done metting', 2.00, '2026-05-08 13:13:59', '2026-05-08 13:14:23'),
+(42, 5, '2026-05-05', 4, 3, 3, 'Great work', 1.00, '2026-05-08 13:14:09', '2026-05-08 13:14:23'),
+(43, 5, '2026-05-06', 3, 8, 3, 'nothing', 1.00, '2026-05-08 13:14:19', '2026-05-08 13:14:23');
 
 -- --------------------------------------------------------
 
@@ -182,7 +192,9 @@ CREATE TABLE `timesheet_submissions` (
 --
 
 INSERT INTO `timesheet_submissions` (`id`, `user_id`, `year`, `week`, `status`, `rejection_reason`, `submitted_at`, `reviewed_at`, `reviewed_by`) VALUES
-(1, 5, 2026, 1, 'approved', NULL, '2026-05-08 09:14:47', '2026-05-08 09:18:52', 1);
+(1, 5, 2026, 1, 'approved', NULL, '2026-05-08 09:14:47', '2026-05-08 09:18:52', 1),
+(2, 1, 2026, 18, 'approved', NULL, '2026-05-08 13:10:55', '2026-05-08 13:11:05', 1),
+(3, 5, 2026, 19, 'approved', NULL, '2026-05-08 13:14:23', '2026-05-08 13:14:39', 1);
 
 -- --------------------------------------------------------
 
@@ -212,7 +224,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `email`, `password_hash`, `name`, `avatar_url`, `reset_token`, `reset_expires`, `role`, `standard_hours`, `is_active`, `is_approved`, `is_deleted`, `created_at`, `updated_at`) VALUES
-(1, 'yasin@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'yasin ullah', NULL, NULL, NULL, 'admin', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
+(1, 'yasin@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'yasin ullah', 'uploads/avatars/avatar_1_1778247314.jpg', NULL, NULL, 'admin', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 13:35:14'),
 (2, 'sarah.connor@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Sarah Connor', NULL, NULL, NULL, 'user', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
 (3, 'michael.chen@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Michael Chen', NULL, NULL, NULL, 'user', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
 (4, 'priya.sharma@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Priya Sharma', NULL, NULL, NULL, 'user', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
@@ -317,13 +329,13 @@ ALTER TABLE `work_types`
 -- AUTO_INCREMENT for table `captcha_store`
 --
 ALTER TABLE `captcha_store`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=72;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=120;
 
 --
 -- AUTO_INCREMENT for table `login_attempts`
 --
 ALTER TABLE `login_attempts`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `projects`
@@ -335,13 +347,13 @@ ALTER TABLE `projects`
 -- AUTO_INCREMENT for table `timesheet_entries`
 --
 ALTER TABLE `timesheet_entries`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
 
 --
 -- AUTO_INCREMENT for table `timesheet_submissions`
 --
 ALTER TABLE `timesheet_submissions`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `users`
