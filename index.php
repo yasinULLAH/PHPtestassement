@@ -386,7 +386,8 @@ if ($api !== '') {
       break;
     case 'week_entries':
       requireAuth();
-      $userId = (int) $_SESSION['user_id'];
+      $targetUserId = (int)($_GET['user_id'] ?? 0);
+      $userId = ($targetUserId > 0 && $_SESSION['user_role'] === 'admin') ? $targetUserId : (int) $_SESSION['user_id'];
       $startDate = $_GET['start'] ?? '';
       $endDate = $_GET['end'] ?? '';
       if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
@@ -697,6 +698,58 @@ if ($api !== '') {
         jsonOut(['success' => true, 'message' => 'Timesheet submitted for approval.']);
       } catch (PDOException $e) {
         jsonError('Submission failed.', 500);
+      }
+      break;
+    case 'admin_overview':
+      requireAdmin();
+      $start = $_GET['start'] ?? date('Y-m-d', strtotime('Monday this week'));
+      $end = $_GET['end'] ?? date('Y-m-d', strtotime('Sunday this week'));
+      try {
+        $db = getDB();
+        $users = $db->query("SELECT id, name, standard_hours FROM users WHERE is_active = 1 AND is_deleted = 0 ORDER BY name ASC")->fetchAll();
+        $stmt = $db->prepare('SELECT user_id, date, hours FROM timesheet_entries WHERE date BETWEEN ? AND ?');
+        $stmt->execute([$start, $end]);
+        $entries = $stmt->fetchAll();
+        $weeks = getWeeksInRange($start, $end);
+        $subsList = [];
+        foreach($weeks as $w) {
+            $sStmt = $db->prepare("SELECT user_id, status FROM timesheet_submissions WHERE year = ? AND week = ?");
+            $sStmt->execute([$w['year'], $w['week']]);
+            while($row = $sStmt->fetch()) {
+                $subsList[$row['user_id'] . '-' . $w['year'] . '-' . $w['week']] = $row['status'];
+            }
+        }
+        $result = [];
+        foreach ($users as $u) {
+            foreach ($weeks as $w) {
+                $hrs = 0;
+                foreach($entries as $e) {
+                    if ($e['user_id'] == $u['id'] && $e['date'] >= $w['start'] && $e['date'] <= $w['end']) {
+                        $hrs += (float)$e['hours'];
+                    }
+                }
+                $subKey = $u['id'] . '-' . $w['year'] . '-' . $w['week'];
+                $status = $subsList[$subKey] ?? null;
+                if (!$status) {
+                    if ($hrs >= $u['standard_hours']) $status = 'completed';
+                    elseif ($hrs > 0) $status = 'incomplete';
+                    else $status = 'missing';
+                }
+                $result[] = [
+                    'user_id' => $u['id'],
+                    'user_name' => $u['name'],
+                    'date_label' => date('M j', strtotime($w['start'])) . ' - ' . date('M j, Y', strtotime($w['end'])),
+                    'date_start' => $w['start'],
+                    'date_end' => $w['end'],
+                    'total_hours' => $hrs,
+                    'std_hours' => $u['standard_hours'],
+                    'status' => $status
+                ];
+            }
+        }
+        jsonOut(['success' => true, 'overview' => $result]);
+      } catch (PDOException $e) {
+        jsonError('Failed to load overview.', 500);
       }
       break;
     case 'admin_submissions':
@@ -1295,6 +1348,10 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
           Manage Work Types
         </div>
+        <div class="user-dropdown-item" id="btn-admin-overview-menu" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          Timesheet Overview
+        </div>
         <div class="user-dropdown-item" id="btn-admin-subs" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           Submissions
@@ -1459,6 +1516,34 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
         <table>
           <thead><tr><th>NAME</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
           <tbody id="work-types-mgmt-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div id="page-admin-overview" class="page">
+    <button class="btn-back btn-back-to-admin">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to Admin
+    </button>
+    <div class="page-title">Timesheet Overview</div>
+    <div class="filters-bar">
+        <input type="text" id="overview-date-picker" class="filter-select" placeholder="Select Date Range" style="min-width:220px">
+        <select class="filter-select" id="overview-user-filter"><option value="">All Users</option></select>
+        <select class="filter-select" id="overview-status-filter">
+            <option value="">All Statuses</option>
+            <option value="approved">Approved</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="incomplete">Incomplete</option>
+            <option value="missing">Missing</option>
+            <option value="rejected">Rejected</option>
+        </select>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>USER</th><th>WEEK</th><th>HOURS</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+          <tbody id="overview-mgmt-tbody"></tbody>
         </table>
       </div>
     </div>
@@ -1989,6 +2074,87 @@ el('btn-admin-work-types').addEventListener('click', function(){
   showPage('page-admin-work-types');
   loadAdminWorkTypes();
 });
+var overviewFp = null;
+var RAW_OVERVIEW_DATA = [];
+el('btn-admin-overview-menu').addEventListener('click', function(){
+  el('user-dropdown').classList.remove('open');
+  showPage('page-admin-overview');
+  if(!overviewFp) {
+    overviewFp = flatpickr(el('overview-date-picker'), {
+      mode: 'range', dateFormat: 'Y-m-d',
+      defaultDate: [new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 1)), new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 7))],
+      onClose: function(selectedDates) { if(selectedDates.length === 2) loadAdminOverview(); }
+    });
+  }
+  apiCall('admin_users').then(function(d){
+    if(d.success){
+      var sel = el('overview-user-filter');
+      sel.innerHTML = '<option value="">All Users</option>';
+      d.users.forEach(function(u){ if(u.is_deleted==0) sel.innerHTML += '<option value="'+u.id+'">'+escHtml(u.name)+'</option>'; });
+    }
+  });
+  loadAdminOverview();
+});
+el('overview-user-filter').addEventListener('change', renderOverview);
+el('overview-status-filter').addEventListener('change', renderOverview);
+function loadAdminOverview(){
+  var dates = overviewFp.selectedDates;
+  if(dates.length !== 2) return;
+  var s = formatFP(dates[0]), e = formatFP(dates[1]);
+  el('overview-mgmt-tbody').innerHTML = '<tr><td colspan="5" style="text-align:center">Loading...</td></tr>';
+  apiCall('admin_overview&start='+s+'&end='+e).then(function(d){
+    if(d.success){ RAW_OVERVIEW_DATA = d.overview; renderOverview(); }
+  });
+}
+function renderOverview(){
+  var uFilter = el('overview-user-filter').value;
+  var sFilter = el('overview-status-filter').value;
+  var tbody = el('overview-mgmt-tbody');
+  var html = '';
+  RAW_OVERVIEW_DATA.forEach(function(r){
+    if(uFilter && r.user_id != uFilter) return;
+    if(sFilter && r.status !== sFilter) return;
+    var badge = '';
+    if(r.status === 'approved') badge = '<span class="badge badge-completed">APPROVED</span>';
+    else if(r.status === 'pending') badge = '<span class="badge badge-incomplete">PENDING</span>';
+    else if(r.status === 'rejected') badge = '<span class="badge badge-missing">REJECTED</span>';
+    else if(r.status === 'completed') badge = '<span class="badge badge-completed">COMPLETED</span>';
+    else if(r.status === 'incomplete') badge = '<span class="badge badge-incomplete">INCOMPLETE</span>';
+    else badge = '<span class="badge badge-missing">MISSING</span>';
+    html += '<tr class="animate__animated animate__fadeIn"><td>'+escHtml(r.user_name)+'</td><td>'+r.date_label+'</td><td>'+r.total_hours+' / '+r.std_hours+'h</td><td>'+badge+'</td>';
+    html += '<td><button class="action-link view-ov-sub" data-uid="'+r.user_id+'" data-uname="'+escHtml(r.user_name)+'" data-start="'+r.date_start+'" data-end="'+r.date_end+'">View Details</button></td></tr>';
+  });
+  tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center">No records match your filters.</td></tr>';
+  tbody.querySelectorAll('.view-ov-sub').forEach(function(b){
+    b.addEventListener('click', function(){
+      var uid = this.dataset.uid, uname = this.dataset.uname, start = this.dataset.start, end = this.dataset.end;
+      el('av-modal-title').textContent = uname + ' - ' + start + ' to ' + end;
+      el('av-modal-tbody').innerHTML = '<tr><td colspan="6" style="text-align:center">Loading...</td></tr>';
+      openModal('admin-view-modal');
+      apiCall('week_entries&user_id='+uid+'&start='+start+'&end='+end).then(function(d){
+        if(d.success){
+            var h = '', total = 0;
+            d.entries.forEach(function(e){
+                var dFormatted = new Date(e.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+                h += '<tr><td>'+dFormatted+'</td><td>'+escHtml(e.project_name)+'</td><td>'+escHtml(e.work_type_name)+'</td><td>'+parseFloat(e.hours)+'h</td><td>'+escHtml(e.description)+'</td>';
+                h += '<td><button class="action-link edit-sub-entry" data-entry=\''+JSON.stringify(e).replace(/'/g, "&#39;")+'\'>Edit</button></td></tr>';
+                total += parseFloat(e.hours);
+            });
+            if(!h) h = '<tr><td colspan="6" style="text-align:center">No entries found.</td></tr>';
+            else h += '<tr><td colspan="3" style="text-align:right;font-weight:bold">Total Hours:</td><td colspan="3" style="font-weight:bold;color:var(--blue)">'+total+'h</td></tr>';
+            el('av-modal-tbody').innerHTML = h;
+            el('av-modal-tbody').querySelectorAll('.edit-sub-entry').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                var entry = JSON.parse(this.dataset.entry);
+                openEditModal(entry);
+                closeModal('admin-view-modal');
+              });
+            });
+        }
+      });
+    });
+  });
+}
 el('btn-admin-subs').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   showPage('page-admin-submissions');
