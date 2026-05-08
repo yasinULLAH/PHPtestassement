@@ -989,8 +989,8 @@ if ($api !== '') {
       break;
     case 'reports':
       requireAdmin();
-      $start = $_GET['start'] ?? date('Y-m-01');
-      $end = $_GET['end'] ?? date('Y-m-t');
+      $start = $_GET['start'] ?? date('Y-m-d', strtotime('-30 days'));
+      $end = $_GET['end'] ?? date('Y-m-d');
       $userId = (int) ($_GET['user_id'] ?? 0);
       $projectId = (int) ($_GET['project_id'] ?? 0);
       $workTypeId = (int) ($_GET['work_type_id'] ?? 0);
@@ -1060,8 +1060,8 @@ if ($api !== '') {
       break;
     case 'export_master_csv':
       requireAdmin();
-      $start = $_GET['start'] ?? date('Y-01-01');
-      $end = $_GET['end'] ?? date('Y-12-31');
+      $start = $_GET['start'] ?? date('Y-m-d', strtotime('-30 days'));
+      $end = $_GET['end'] ?? date('Y-m-d');
       $userId = (int) ($_GET['user_id'] ?? 0);
       $projectId = (int) ($_GET['project_id'] ?? 0);
       $workTypeId = (int) ($_GET['work_type_id'] ?? 0);
@@ -1998,6 +1998,34 @@ function saveTableState(){
     statusFilter: STATE.statusFilter, dateStart: STATE.dateStart, dateEnd: STATE.dateEnd
   }));
 }
+function saveFiltersState(){
+  var s = {};
+  document.querySelectorAll('.filters-bar input, .filters-bar select, #per-page-select').forEach(function(e){
+    if(e.id) s[e.id] = e.value;
+  });
+  localStorage.setItem('tt_all_filters', JSON.stringify(s));
+}
+function loadFiltersState(){
+  try{
+    var s = JSON.parse(localStorage.getItem('tt_all_filters'));
+    if(s){
+      Object.keys(s).forEach(function(id){
+        var e = document.getElementById(id);
+        if(e) {
+          e.value = s[id];
+          if(e._flatpickr && s[id]) {
+            e._flatpickr.setDate(s[id].split(' to '), false);
+          }
+        }
+      });
+    }
+  }catch(e){}
+}
+document.addEventListener('change', function(e){
+  if(e.target.closest('.filters-bar') || e.target.id === 'per-page-select') {
+    saveFiltersState();
+  }
+});
 function loadTableState(){
   try{
     var s = JSON.parse(localStorage.getItem('tt_tbl_state'));
@@ -2045,6 +2073,7 @@ function showMain(){
   el('app-main').classList.add('active');
   showPage('page-timesheets');
   loadTableState();
+  loadFiltersState();
   loadTimesheets();
   prefetchProjectsAndTypes();
 }
@@ -2268,10 +2297,12 @@ el('btn-admin-overview-menu').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   showPage('page-admin-overview');
   if(!overviewFp) {
+    var s = JSON.parse(localStorage.getItem('tt_all_filters') || '{}');
+    var defDate = s['overview-date-picker'] ? s['overview-date-picker'].split(' to ') : [new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 1)), new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 7))];
     overviewFp = flatpickr(el('overview-date-picker'), {
       mode: 'range', dateFormat: 'Y-m-d',
-      defaultDate: [new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 1)), new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 7))],
-      onClose: function(selectedDates) { if(selectedDates.length === 2) loadAdminOverview(); }
+      defaultDate: defDate,
+      onClose: function(selectedDates) { if(selectedDates.length === 2) { saveFiltersState(); loadAdminOverview(); } }
     });
   }
   apiCall('admin_users').then(function(d){
@@ -2279,6 +2310,8 @@ el('btn-admin-overview-menu').addEventListener('click', function(){
       var sel = el('overview-user-filter');
       sel.innerHTML = '<option value="">All Users</option>';
       d.users.forEach(function(u){ if(u.is_deleted==0) sel.innerHTML += '<option value="'+u.id+'">'+escHtml(u.name)+(u.role==='admin'?' (Admin)':'')+'</option>'; });
+      loadFiltersState();
+      renderOverview();
     }
   });
   loadAdminOverview();
@@ -2370,9 +2403,15 @@ function initCharts(){
 el('btn-admin-reports').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   showPage('page-admin-reports');
-  var d = new Date(), y = d.getFullYear(), m = d.getMonth();
-  el('report-start').value = y + '-' + String(m+1).padStart(2,'0') + '-01';
-  el('report-end').value = y + '-' + String(m+1).padStart(2,'0') + '-' + String(new Date(y, m+1, 0).getDate()).padStart(2,'0');
+  var endD = new Date(), startD = new Date();
+  startD.setDate(endD.getDate() - 30);
+  var sStr = startD.toISOString().split('T')[0];
+  var eStr = endD.toISOString().split('T')[0];
+  el('report-start').value = sStr;
+  el('report-end').value = eStr;
+  loadFiltersState();
+  if(!el('report-start').value) el('report-start').value = sStr;
+  if(!el('report-end').value) el('report-end').value = eStr;
   if(!rptTrendChart && typeof Chart !== 'undefined') initCharts();
   el('btn-run-report').click();
 });
@@ -2695,6 +2734,17 @@ el('btn-run-report').addEventListener('click', function(){
             d.filters.users.forEach(function(x){ el('report-user').innerHTML += '<option value="'+x.id+'">'+escHtml(x.name)+(x.role==='admin'?' (Admin)':'')+'</option>'; });
             d.filters.projects.forEach(function(x){ el('report-project').innerHTML += '<option value="'+x.id+'">'+escHtml(x.name)+'</option>'; });
             d.filters.work_types.forEach(function(x){ el('report-work-type').innerHTML += '<option value="'+x.id+'">'+escHtml(x.name)+'</option>'; });
+            
+            var saved = JSON.parse(localStorage.getItem('tt_all_filters') || '{}');
+            var changed = false;
+            if(saved['report-user']) { el('report-user').value = saved['report-user']; changed = true; }
+            if(saved['report-project']) { el('report-project').value = saved['report-project']; changed = true; }
+            if(saved['report-work-type']) { el('report-work-type').value = saved['report-work-type']; changed = true; }
+            
+            if(changed) {
+                el('btn-run-report').click();
+                return;
+            }
         }
         el('rpt-summary-hours').textContent = d.summary.total_hours.toFixed(1);
         el('rpt-summary-entries').textContent = d.summary.total_entries;
