@@ -1,15 +1,4 @@
 <?php
-$isLocalhost = in_array(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0], ['localhost', '127.0.0.1', '::1']);
-$isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-
-if ($isLocalhost && $isHttps) {
-  header('Location: http://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'], true, 302);
-  exit;
-} elseif (!$isLocalhost && !$isHttps) {
-  header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'], true, 301);
-  exit;
-}
-
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'ticktock_db');
 define('DB_USER', 'root');
