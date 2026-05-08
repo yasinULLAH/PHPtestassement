@@ -1008,6 +1008,15 @@ if ($api !== '') {
         jsonError('Export failed.', 500);
       }
       break;
+    case 'manifest':
+      header('Content-Type: application/manifest+json');
+      $icon = 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" fill="#2563EB"/><text x="256" y="290" font-family="sans-serif" font-size="200" font-weight="bold" fill="#fff" text-anchor="middle">tt</text></svg>');
+      echo json_encode(['name'=>'ticktock','short_name'=>'ticktock','start_url'=>'.','display'=>'standalone','background_color'=>'#2563EB','theme_color'=>'#2563EB','icons'=>[['src'=>$icon,'sizes'=>'512x512','type'=>'image/svg+xml']]]);
+      exit;
+    case 'sw':
+      header('Content-Type: application/javascript');
+      echo "self.addEventListener('install', e => self.skipWaiting()); self.addEventListener('activate', e => e.waitUntil(clients.claim())); self.addEventListener('fetch', e => {});";
+      exit;
     default:
       jsonError('Unknown API endpoint.', 404);
   }
@@ -1021,6 +1030,9 @@ $csrf = csrfToken();
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ticktock — Timesheet Management</title>
+<link rel="manifest" href="?api=manifest">
+<meta name="theme-color" content="#2563EB">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1058,8 +1070,8 @@ $csrf = csrfToken();
   --radius-xl:24px;
   --font:'Inter',sans-serif;
 }
-html{font-size:16px;scroll-behavior:smooth}
-body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line-height:1.5;min-height:100vh;-webkit-font-smoothing:antialiased}
+html{font-size:16px;scroll-behavior:smooth;overflow-x:hidden}
+body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line-height:1.5;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 a{color:var(--blue);text-decoration:none}
 a:hover{text-decoration:underline}
 button{font-family:var(--font);cursor:pointer;border:none;outline:none}
@@ -1077,7 +1089,7 @@ input,select,textarea{font-family:var(--font)}
 .login-brand-tagline{color:rgba(255,255,255,.85);font-size:.95rem;line-height:1.7;max-width:340px;position:relative;z-index:1}
 .form-group{margin-bottom:1.25rem}
 .form-group label{display:block;font-size:.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:.5rem;letter-spacing:.02em;text-transform:uppercase}
-.form-control{width:100%;padding:.75rem 1rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.9rem;color:var(--text-primary);background:#fff;transition:border-color .2s,box-shadow .2s}
+.form-control{width:100%;padding:.75rem 1rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:var(--text-primary);background:#fff;transition:border-color .2s,box-shadow .2s}
 .form-control:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
 .form-control.error{border-color:var(--red)}
 .check-wrap{display:flex;align-items:center;gap:.5rem;margin-bottom:1.5rem}
@@ -1095,7 +1107,7 @@ input,select,textarea{font-family:var(--font)}
 .btn-ghost:hover{background:var(--blue-light)}
 .captcha-wrap{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
 .captcha-img{border-radius:var(--radius-sm);border:1.5px solid var(--border);height:48px;object-fit:contain;background:#f8f9fa;cursor:pointer}
-.captcha-input{flex:1;padding:.65rem 1rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.875rem}
+.captcha-input{flex:1;padding:.65rem 1rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;min-width:0}
 .captcha-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
 .field-error{font-size:.75rem;color:var(--red);margin-top:.35rem;display:none}
 .field-error.visible{display:block}
@@ -1197,7 +1209,7 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 .hours-stepper{display:flex;align-items:center;gap:.5rem}
 .stepper-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:#fff;font-size:1rem;color:var(--text-secondary);cursor:pointer;transition:all .15s;flex-shrink:0;line-height:1}
 .stepper-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-light)}
-#modal-hours{width:70px;text-align:center;padding:.6rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.9rem;font-weight:600}
+#modal-hours{width:70px;text-align:center;padding:.6rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;font-weight:600}
 #modal-hours:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
 .cp-modal-overlay{display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(2px)}
 .cp-modal-overlay.open{display:flex}
@@ -1225,14 +1237,23 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
   .progress-wrap{text-align:left}
 }
 @media(max-width:640px){
-  .login-left{padding:2rem 1.5rem}
+  .login-left{padding:1.5rem 1rem}
+  .login-form-wrap h2{font-size:1.5rem}
+  .captcha-wrap{flex-wrap:wrap;gap:0.5rem}
+  .captcha-input{width:100%;flex:none}
+  .topbar{padding:0 1rem}
+  .topbar-section{display:none}
   .page-title{font-size:1.35rem}
   .table-wrap{-webkit-overflow-scrolling:touch}
   thead th,tbody td{padding:.75rem 1rem}
   .entry-row{flex-wrap:wrap}
   .filters-bar{flex-direction:column;align-items:stretch}
   .filter-date-btn,.filter-select{width:100%}
-  .pagination{flex-direction:column;align-items:flex-start}
+  .pagination{flex-direction:column;align-items:flex-start;gap:1rem}
+  .modal-header{padding:1.25rem 1.25rem 1rem}
+  .modal-body{padding:1.25rem}
+  .modal-footer{padding:1rem 1.25rem 1.25rem;flex-direction:column;gap:0.5rem}
+  .modal-footer .btn-outline{width:100%}
 }
 @media print{
   .topbar,.filters-bar,.pagination,.btn-back,.entry-menu-wrap,.btn-add-task,.footer-bar{display:none!important}
@@ -1276,6 +1297,9 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       <div class="field-error visible" id="err-login" style="margin-top:.75rem;font-size:.8rem"></div>
       <div style="margin-top:1.5rem;text-align:center;font-size:.875rem;color:var(--text-secondary)">
         Don't have an account? <button type="button" class="btn-ghost" id="btn-show-register">Register here</button>
+      </div>
+      <div style="text-align:center;margin-top:1rem">
+        <button type="button" class="btn-outline" id="btn-install-pwa" style="display:none;width:100%;font-weight:600"><svg style="width:16px;height:16px;vertical-align:middle;margin-right:6px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Install App</button>
       </div>
     </form>
     <div class="login-form-wrap animate__animated animate__fadeInUp" id="register-wrap" style="display:none">
@@ -2865,6 +2889,29 @@ function resetIdleTimer(){
 ['mousemove','keydown','click','scroll','touchstart'].forEach(function(ev){ document.addEventListener(ev, resetIdleTimer, {passive:true}); });
 resetIdleTimer();
 init();
+
+if('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('?api=sw');
+}
+var deferredPrompt;
+window.addEventListener('beforeinstallprompt', function(e){
+  e.preventDefault();
+  deferredPrompt = e;
+  var btn = el('btn-install-pwa');
+  if(btn) btn.style.display = 'inline-block';
+});
+var installBtn = el('btn-install-pwa');
+if(installBtn){
+  installBtn.addEventListener('click', function(){
+    if(deferredPrompt){
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(res){
+        if(res.outcome === 'accepted'){ installBtn.style.display = 'none'; }
+        deferredPrompt = null;
+      });
+    }
+  });
+}
 })();
 </script>
 </body>
