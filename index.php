@@ -1330,6 +1330,14 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 .empty-icon{font-size:2.5rem;margin-bottom:.75rem;opacity:.5}
 .empty-state h3{font-size:1rem;font-weight:600;color:var(--text-primary);margin-bottom:.35rem}
 .empty-state p{font-size:.875rem}
+.bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--border); box-shadow: 0 -4px 12px rgba(0,0,0,0.03); z-index: 1000; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding-bottom: env(safe-area-inset-bottom); }
+.bottom-nav.nav-hidden { transform: translateY(100%); }
+.bottom-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60px; color: var(--text-secondary); background: none; transition: color 0.2s, background 0.2s; min-width: 44px; }
+.bottom-nav-item svg { width: 22px; height: 22px; margin-bottom: 4px; }
+.bottom-nav-item span { font-size: 0.65rem; font-weight: 600; }
+.bottom-nav-item.active { color: var(--blue); }
+.bottom-nav-item:active { background: var(--bg); }
+@keyframes slideUpMenu { from { opacity:0; transform:translateY(15px) } to { opacity:1; transform:translateY(0) } }
 @media(max-width:900px){
   .login-right{display:none}
   .login-left{flex:1;padding:2.5rem 2rem;min-height:100vh}
@@ -1341,6 +1349,10 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 }
 @media(max-width:640px){
   .login-left{padding:1.5rem 1rem}
+  .user-btn { display: none !important; }
+  .bottom-nav { display: flex; }
+  #app-main { padding-bottom: 80px; }
+  .user-dropdown { position: fixed; top: auto !important; bottom: 80px; left: 1rem; right: 1rem; min-width: 0; border-radius: var(--radius-lg); box-shadow: 0 4px 20px rgba(0,0,0,0.15); animation: slideUpMenu 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
   .login-form-wrap h2{font-size:1.5rem}
   .captcha-wrap{flex-wrap:wrap;gap:0.5rem}
   .captcha-input{width:100%;flex:none}
@@ -1812,6 +1824,24 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
         </div>
     </div>
   </div>
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="bottom-nav-item active" id="bnav-home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span>Home</span>
+    </button>
+    <button class="bottom-nav-item" id="bnav-profile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>Profile</span>
+    </button>
+    <button class="bottom-nav-item" id="bnav-admin" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+      <span>Admin</span>
+    </button>
+    <button class="bottom-nav-item" id="bnav-menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <span>Menu</span>
+    </button>
+  </nav>
 </div>
 <div class="modal-overlay" id="admin-view-modal">
   <div class="modal-box animate__animated animate__zoomIn animate__faster" style="max-width:700px">
@@ -2077,6 +2107,11 @@ function showPage(pageId){
     void p.offsetWidth;
     p.classList.add('animate__animated','animate__fadeIn');
   }
+  if(typeof updateBNav === 'function'){
+    if(pageId === 'page-timesheets') updateBNav('bnav-home');
+    else if(pageId === 'page-profile') updateBNav('bnav-profile');
+    else if(pageId.indexOf('page-admin') === 0) updateBNav('bnav-admin');
+  }
 }
 function getInitials(name){
   return name.split(' ').map(function(w){ return w[0]; }).join('').substring(0,2).toUpperCase();
@@ -2095,8 +2130,10 @@ function setUserUI(user){
   }
   if(user.role === 'admin'){
     document.querySelectorAll('[id^="btn-admin-"]').forEach(function(b){ b.style.display = 'flex'; });
+    if(el('bnav-admin')) el('bnav-admin').style.display = 'flex';
   } else {
     document.querySelectorAll('[id^="btn-admin-"]').forEach(function(b){ b.style.display = 'none'; });
+    if(el('bnav-admin')) el('bnav-admin').style.display = 'none';
   }
 }
 function loadCaptcha(){
@@ -2191,6 +2228,32 @@ el('user-menu-btn').addEventListener('click', function(e){
   e.stopPropagation();
   el('user-dropdown').classList.toggle('open');
 });
+if(el('bnav-home')){
+  el('bnav-home').addEventListener('click', function() { showPage('page-timesheets'); });
+  el('bnav-profile').addEventListener('click', function() { el('btn-show-profile').click(); });
+  el('bnav-admin').addEventListener('click', function() { el('btn-admin-overview-menu').click(); });
+  el('bnav-menu').addEventListener('click', function(e) {
+    e.stopPropagation();
+    el('user-dropdown').classList.toggle('open');
+  });
+}
+function updateBNav(id){
+  document.querySelectorAll('.bottom-nav-item').forEach(function(i){ i.classList.remove('active'); });
+  if(id && el(id)) el(id).classList.add('active');
+}
+var lastScrollY = window.scrollY;
+var bnav = el('bottom-nav');
+window.addEventListener('scroll', function() {
+  if(!bnav || window.innerWidth > 640) return;
+  var curY = window.scrollY;
+  if (curY > lastScrollY && curY > 50) {
+    bnav.classList.add('nav-hidden');
+    if(el('user-dropdown').classList.contains('open')) el('user-dropdown').classList.remove('open');
+  } else {
+    bnav.classList.remove('nav-hidden');
+  }
+  lastScrollY = curY;
+}, { passive: true });
 document.addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   if(STATE.activeOpenMenu){ STATE.activeOpenMenu.classList.remove('open'); STATE.activeOpenMenu = null; }
