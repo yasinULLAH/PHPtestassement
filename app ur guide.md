@@ -44,16 +44,18 @@
 - **Export:** Download weekly timesheet as CSV with date, project, type, hours, description.
 
 #### 🛡️ 3. Admin Dashboard & Oversight
-- **User Management Table:** View all users. Inline-edit roles, standard hours, approval status, or soft-delete (sets `is_active=0`, `is_deleted=1`). Prevents self-deletion.
+- **User Management Table:** View all users. Inline-edit roles, standard hours, approval status, or soft-delete (sets `is_active=0`, `is_deleted=1`). 
+- **Account Recovery:** Restore soft-deleted users or permanently **Purge** accounts (removing all associated timesheet data).
 - **Project & Work Type Management:** Add/edit reference data. Toggle `is_active` to hide from employee dropdowns without breaking historical data.
-- **Submission Review Queue:** View pending timesheets. Approve instantly or Reject with a mandatory reason. Rejection reason displays in user's detail view.
-- **Global Reports:** Filter by date range. Aggregates total hours by Project and by User. Enables cross-department productivity analysis.
+- **Submission Review Queue:** View pending timesheets. Admins can **edit entries** during review to fix minor errors. Approve instantly or Reject with a mandatory reason.
+- **Global Reports:** Filter by date range. Aggregates total hours by Project and by User.
+- **System-Wide Settings:** Dedicated panel to manage global defaults such as the Company Name and Default Standard Hours for new registrations.
 
 #### 🎨 4. UI/UX & Client Experience
-- **Responsive Design:** Fully adaptive for desktop, tablet, and mobile. Collapsible login layout on small screens.
+- **Responsive Design:** Fully adaptive for desktop, tablet, and mobile.
 - **Performance:** Skeleton loaders for async data, lazy-loading modals, debounced interactions, zero framework overhead.
+- **Interactive Feedback:** Smooth animations with Animate.css and non-intrusive success/error toasts.
 - **Print-Ready:** Dedicated `@media print` styles hide navigation, filters, and buttons. Clean, professional paper output.
-- **Notifications:** SweetAlert2 for confirmations, success/error toasts, and session expiry warnings.
 
 ---
 
@@ -125,16 +127,18 @@ login_attempts (id, ip_address, attempt_time)
 - **ایکسپورٹ:** ہفتہ وار ٹائم شیٹ CSV فارمیٹ میں ڈاؤن لوڈ کریں۔
 
 #### 🛡️ 3. ایڈمن ڈیش بورڈ اور نگرانی
-- **صارف مینجمنٹ:** تمام صارفین دیکھیں۔ رولز، معیاری گھنٹے، منظوری کی حالت آن لائن تبدیل کریں، یا سافٹ ڈیلیٹ کریں۔ خود کو ڈیلیٹ نہیں کر سکتے۔
+- **صارف مینجمنٹ:** تمام صارفین دیکھیں۔ رولز، معیاری گھنٹے، منظوری کی حالت آن لائن تبدیل کریں، یا سافٹ ڈیلیٹ کریں۔
+- **اکاؤنٹ ریکوری:** ڈیلیٹ شدہ صارفین کو **Restore** کریں یا ہمیشہ کے لیے **Purge** (مکمل خاتمہ) کریں۔
 - **پروجیکٹ اور ورک ٹائپس:** ریفرنس ڈیٹا شامل/ترمیم کریں۔ `is_active` ٹوگل کر کے پرانے ڈیٹا کو خراب کیے بغیر نئے ڈراپ ڈاؤن سے چھپائیں۔
-- **سبمیشن ریویو:** پینڈنگ ٹائم شیٹس دیکھیں۔ فوری اپروو یا وجہ کے ساتھ ریجیکٹ کریں۔ وجہ صارف کے تفصیلی ویو میں نظر آتی ہے۔
-- **گلوبل رپورٹس:** ڈیٹ رینج فلٹر۔ پروجیکٹ اور صارف کے لحاظ سے کل گھنٹوں کا خلاصہ۔ محکمہ جاتی پیداواری تجزیہ ممکن۔
+- **سبمیشن ریویو:** پینڈنگ ٹائم شیٹس دیکھیں۔ ایڈمن جائزے کے دوران **انٹریز کو ایڈیٹ** کر سکتے ہیں۔ فوری اپروو یا وجہ کے ساتھ ریجیکٹ کریں۔
+- **گلوبل رپورٹس:** ڈیٹ رینج فلٹر۔ پروجیکٹ اور صارف کے لحاظ سے کل گھنٹوں کا خلاصہ۔
+- **سسٹم سیٹنگز:** کمپنی کا نام اور ڈیفالٹ معیاری گھنٹے سیٹ کرنے کے لیے خصوصی پینل۔
 
 #### 🎨 4. UI/UX اور کلینٹ کا تجربہ
 - **ریسپانسو ڈیزائن:** ڈیسک ٹاپ، ٹیبلیٹ، موبائل کے لیے مکمل موافق۔
 - **کارکردگی:** اسکیلٹن لوڈرز، لیژی لوڈنگ ماڈلز، زیرو فریم ورک اوور ہیڈ۔
+- **انٹرایکٹو تجربہ:** Animate.css کے ذریعے بہترین اینیمیشنز اور ٹوسٹ نوٹیفکیشنز۔
 - **پرنٹ ریڈی:** `@media print` اسٹائلز نیویگیشن اور بٹنز چھپاتی ہیں۔ صاف، پروفیشنل کاغذی آؤٹ پٹ۔
-- **نوٹیفکیشنز:** SweetAlert2 کے ذریعے تصدیقات، کامیابی/غلٹی ٹوسٹس، اور سیشن ایکسپائر وارننگ۔
 
 ### 🔒 سیکیورٹی اور کارکردگی
 | فیچر | نفاذ | اثر |

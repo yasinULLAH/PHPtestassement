@@ -31,15 +31,17 @@ For your convenience, I have provided pre-seeded accounts in the database. Use t
 ## ✨ Key Enterprise Features
 
 - 🛡️ **Centralized Admin Dashboard** — Manage users, projects, and work types from one place with full CRUD capabilities.
+- ⚙️ **Global System Settings** — Administrators can configure system-wide defaults including company name and standard work hours.
 - ✅ **Approval Workflow** — Submissions and registrations require admin approval to maintain data quality.
-- 🔐 **Enhanced Security** — Math CAPTCHA, CSRF, IP-based Rate Limiting, and secure session management with absolute timeouts.
+- 📝 **Advanced Submission Review** — Admins can edit individual timesheet entries during the review process to ensure accuracy before final approval.
+- 🔐 **Enhanced Security** — Math CAPTCHA, CSRF, IP-based Rate Limiting, password complexity enforcement, and secure session management with idle and absolute timeouts.
 - 📋 **Submission Lifecycle** — Users submit weekly timesheets which lock them for review, preventing post-submission modifications.
-- 📊 **Global Reports** — Admins can view aggregate hours by project and user across configurable date ranges.
-- 👤 **Profile Management** — Users can update their personal information, manage avatars, and securely change passwords.
+- 📊 **Global Reports** — Admins can view aggregate hours by project and user across configurable date ranges with interactive tables.
+- 👤 **Profile Management** — Users can update their personal information, manage avatars (stored securely), and securely change passwords.
 - 📧 **Password Recovery** — Token-based reset system with simulated email delivery (logged to `email.txt`).
-- 🔄 **Data Integrity** — Soft-delete logic for users to preserve historical data while removing active access.
+- 🔄 **Data Integrity & Recovery** — Support for soft-deleting users, restoring deactivated accounts, or permanently purging historical data.
 - 📥 **Data Export** — Export timesheets to CSV for external reporting or payroll processing.
-- 📱 **Native Performance** — Zero framework overhead; built with raw PHP and CSS for maximum durability.
+- 📱 **Native Performance** — Zero framework overhead; built with raw PHP and CSS for maximum durability and speed.
 
 ---
 
