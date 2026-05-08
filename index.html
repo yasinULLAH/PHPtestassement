@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ticktock - Timesheet Management</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563EB',
+                        'status-completed': '#10B981',
+                        'status-incomplete': '#FBBF24',
+                        'status-missing': '#EF4444',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        [v-cloak] { display: none; }
+        .progress-bar { transition: width 0.3s ease; }
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
+        input:focus, select:focus, textarea:focus { outline: 2px solid #2563EB; border-color: transparent; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans min-h-screen">
+
+    <!-- App Container -->
+    <div id="app">
+        <!-- Login View -->
+        <div id="login-view" class="hidden min-h-screen flex">
+            <div class="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
+                <div class="max-w-md w-full">
+                    <h2 class="text-3xl font-bold mb-2">Welcome back</h2>
+                    <p class="text-gray-500 mb-8">Please enter your details to sign in.</p>
+                    <form id="login-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Email</label>
+                            <input type="email" id="login-email" value="name@example.com" class="w-full p-3 border rounded-lg" placeholder="name@example.com" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Password</label>
+                            <input type="password" id="login-password" value="password" class="w-full p-3 border rounded-lg" placeholder="••••••••" required>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label class="flex items-center">
+                                <input type="checkbox" class="mr-2 rounded border-gray-300">
+                                <span class="text-sm">Remember me</span>
+                            </label>
+                            <a href="#" class="text-sm text-primary font-medium">Forgot password?</a>
+                        </div>
+                        <button type="submit" class="w-full bg-primary text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition">Sign in</button>
+                    </form>
+                </div>
+            </div>
+            <div class="hidden lg:flex w-1/2 bg-primary items-center justify-center p-12 relative overflow-hidden">
+                <div class="relative z-10 text-white max-w-lg">
+                    <h1 class="text-5xl font-bold mb-6 italic">ticktock</h1>
+                    <p class="text-xl opacity-90 leading-relaxed">
+                        Introducing ticktock, our cutting-edge timesheet web application designed to revolutionize how you manage employee work hours. With ticktock, you can effortlessly track and monitor employee attendance and productivity from anywhere, anytime, using any internet-connected device.
+                    </p>
+                </div>
+                <!-- Decorative Circle -->
+                <div class="absolute -bottom-24 -right-24 w-96 h-96 bg-blue-400 rounded-full opacity-20"></div>
+                <div class="absolute top-12 left-12 w-24 h-24 bg-blue-300 rounded-full opacity-10"></div>
+            </div>
+        </div>
+
+        <!-- Dashboard Layout (Header + Content) -->
+        <div id="main-layout" class="hidden">
+            <!-- Header -->
+            <header class="bg-white border-b sticky top-0 z-30">
+                <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                    <div class="flex items-center gap-8">
+                        <h1 class="text-2xl font-bold italic text-primary cursor-pointer" onclick="showView('dashboard')">ticktock</h1>
+                        <nav class="hidden md:flex gap-6">
+                            <a href="#" class="text-sm font-semibold border-b-2 border-primary h-16 flex items-center px-1">Timesheets</a>
+                        </nav>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right hidden sm:block">
+                            <p id="user-display-name" class="text-sm font-semibold">John Doe</p>
+                            <p class="text-xs text-gray-500">Employee</p>
+                        </div>
+                        <button id="logout-btn" class="p-2 rounded-full hover:bg-gray-100">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <main class="max-w-7xl mx-auto px-4 py-8">
+                <!-- Dashboard View -->
+                <div id="dashboard-view" class="hidden">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                        <h2 class="text-2xl font-bold">Your Timesheets</h2>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border mb-6 flex flex-wrap gap-4 items-end">
+                        <div class="w-full sm:w-auto">
+                            <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Date Range</label>
+                            <select id="filter-date-range" class="p-2 border rounded-lg bg-gray-50 text-sm w-full">
+                                <option value="all">Select Range</option>
+                                <option value="jan">January 2024</option>
+                            </select>
+                        </div>
+                        <div class="w-full sm:w-auto">
+                            <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Status</label>
+                            <select id="filter-status" class="p-2 border rounded-lg bg-gray-50 text-sm w-full">
+                                <option value="all">Status</option>
+                                <option value="COMPLETED">Completed</option>
+                                <option value="INCOMPLETE">Incomplete</option>
+                                <option value="MISSING">Missing</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead class="bg-gray-50 border-b">
+                                <tr>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Week #</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="timesheets-tbody" class="divide-y">
+                                <!-- Table rows will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="mt-6 flex items-center justify-between text-sm text-gray-500">
+                        <div>
+                            <select class="p-1 border rounded bg-white">
+                                <option>5 per page</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button class="px-3 py-1 border rounded hover:bg-gray-100">Previous</button>
+                            <span class="px-3 py-1 bg-primary text-white rounded">1</span>
+                            <button class="px-3 py-1 border rounded hover:bg-gray-100">Next</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detail View -->
+                <div id="detail-view" class="hidden">
+                    <button onclick="showView('dashboard')" class="flex items-center text-sm text-gray-500 hover:text-primary mb-6 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                        Back to all timesheets
+                    </button>
+
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+                        <div>
+                            <h2 class="text-3xl font-bold">This week's timesheet</h2>
+                            <p id="detail-week-range" class="text-gray-500 mt-1">21 - 26 January, 2024</p>
+                        </div>
+                        <div class="flex flex-col items-end gap-2 w-full md:w-64">
+                            <div class="flex justify-between w-full text-sm font-semibold">
+                                <span id="detail-hours-text">28/40 hrs</span>
+                                <span id="detail-percent-text">70%</span>
+                            </div>
+                            <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div id="detail-progress-bar" class="h-full bg-primary progress-bar" style="width: 70%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Daily List -->
+                    <div id="daily-list" class="space-y-12">
+                        <!-- Days will be injected here -->
+                    </div>
+                </div>
+            </main>
+
+            <footer class="max-w-7xl mx-auto px-4 py-12 text-center text-sm text-gray-400">
+                &copy; 2024 tentwenty. All rights reserved.
+            </footer>
+        </div>
+
+        <!-- Add/Edit Modal -->
+        <div id="entry-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
+            <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div class="p-6 border-b flex justify-between items-center">
+                    <h3 id="modal-title" class="text-xl font-bold">Add New Entry</h3>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <form id="entry-form" class="p-6 space-y-4">
+                    <input type="hidden" id="entry-id">
+                    <input type="hidden" id="entry-date">
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Project *</label>
+                        <select id="entry-project" class="w-full p-3 border rounded-lg bg-gray-50" required>
+                            <option value="">Project Name</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Type of Work *</label>
+                        <select id="entry-work-type" class="w-full p-3 border rounded-lg bg-gray-50" required>
+                            <option value="">Work Type</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Task description *</label>
+                        <textarea id="entry-description" class="w-full p-3 border rounded-lg bg-gray-50 h-32" placeholder="Write text here..." required></textarea>
+                        <p class="text-xs text-gray-400 mt-1">is max 50 characters</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Hours *</label>
+                        <div class="flex items-center border rounded-lg overflow-hidden bg-gray-50 w-32">
+                            <button type="button" onclick="adjustHours(-1)" class="px-3 py-2 hover:bg-gray-200 transition">-</button>
+                            <input type="number" id="entry-hours" class="w-full text-center bg-transparent border-none p-2 focus:ring-0" value="0" min="0" step="1" required>
+                            <button type="button" onclick="adjustHours(1)" class="px-3 py-2 hover:bg-gray-200 transition">+</button>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-4 pt-4">
+                        <button type="submit" class="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">Add entry</button>
+                        <button type="button" onclick="closeModal()" class="flex-1 border py-3 rounded-lg font-semibold hover:bg-gray-50 transition">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Scripts -->
+    <script>
+        // --- DATA STORE (IndexedDB Wrapper) ---
+        const DB_NAME = 'TickTockDB';
+        const DB_VERSION = 1;
+        let db;
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onerror = (e) => reject('Database error: ' + e.target.errorCode);
+                request.onsuccess = (e) => {
+                    db = e.target.result;
+                    resolve(db);
+                };
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('users')) db.createObjectStore('users', { keyPath: 'id', autoIncrement: true });
+                    if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects', { keyPath: 'id', autoIncrement: true });
+                    if (!db.objectStoreNames.contains('work_types')) db.createObjectStore('work_types', { keyPath: 'id', autoIncrement: true });
+                    if (!db.objectStoreNames.contains('entries')) db.createObjectStore('entries', { keyPath: 'id', autoIncrement: true });
+                };
+            });
+        }
+
+        async function seedData() {
+            const projects = await apiGetAll('projects');
+            if (projects.length === 0) {
+                await apiAdd('projects', { name: 'Homepage Development' });
+                await apiAdd('projects', { name: 'Project Alpha' });
+                await apiAdd('projects', { name: 'Project Beta' });
+                await apiAdd('work_types', { name: 'Bug fixes' });
+                await apiAdd('work_types', { name: 'Feature Development' });
+                await apiAdd('work_types', { name: 'Meeting' });
+                
+                // Add some initial entries for testing (Last week of Jan 2024)
+                const jan21 = '2024-01-21';
+                const jan22 = '2024-01-22';
+                await apiAdd('entries', { date: jan21, project_id: 1, work_type_id: 2, description: 'Homepage Development', hours: 4 });
+                await apiAdd('entries', { date: jan21, project_id: 1, work_type_id: 2, description: 'Homepage Development', hours: 4 });
+                await apiAdd('entries', { date: jan22, project_id: 1, work_type_id: 2, description: 'Homepage Development', hours: 4 });
+                await apiAdd('entries', { date: jan22, project_id: 1, work_type_id: 2, description: 'Homepage Development', hours: 4 });
+                await apiAdd('entries', { date: jan22, project_id: 1, work_type_id: 2, description: 'Homepage Development', hours: 4 });
+                await apiAdd('entries', { date: jan22, project_id: 1, work_type_id: 2, description: 'Homepage Development', hours: 8 });
+            }
+        }
+
+        function apiGetAll(storeName) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(storeName, 'readonly');
+                const store = tx.objectStore(storeName);
+                const request = store.getAll();
+                request.onsuccess = () => resolve(request.result);
+            });
+        }
+
+        function apiGetById(storeName, id) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(storeName, 'readonly');
+                const store = tx.objectStore(storeName);
+                const request = store.get(Number(id));
+                request.onsuccess = () => resolve(request.result);
+            });
+        }
+
+        function apiAdd(storeName, data) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(storeName, 'readwrite');
+                const store = tx.objectStore(storeName);
+                const request = store.add(data);
+                request.onsuccess = () => resolve(request.result);
+            });
+        }
+
+        function apiUpdate(storeName, data) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(storeName, 'readwrite');
+                const store = tx.objectStore(storeName);
+                const request = store.put(data);
+                request.onsuccess = () => resolve(request.result);
+            });
+        }
+
+        function apiDelete(storeName, id) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(storeName, 'readwrite');
+                const store = tx.objectStore(storeName);
+                const request = store.delete(Number(id));
+                request.onsuccess = () => resolve(true);
+            });
+        }
+
+        // --- APP LOGIC ---
+        let currentUserId = null;
+        let activeWeekData = null; // Used for Detail View
+
+        async function init() {
+            await initDB();
+            await seedData();
+            
+            const sessionUser = sessionStorage.getItem('ticktock_user');
+            if (sessionUser) {
+                currentUserId = JSON.parse(sessionUser).id;
+                showView('dashboard');
+            } else {
+                showView('login');
+            }
+
+            setupEventListeners();
+        }
+
+        function setupEventListeners() {
+            document.getElementById('login-form').onsubmit = (e) => {
+                e.preventDefault();
+                // Dummy login
+                currentUserId = 1;
+                sessionStorage.setItem('ticktock_user', JSON.stringify({ id: 1, name: 'John Doe' }));
+                showView('dashboard');
+            };
+
+            document.getElementById('logout-btn').onclick = () => {
+                sessionStorage.removeItem('ticktock_user');
+                showView('login');
+            };
+
+            document.getElementById('entry-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const id = document.getElementById('entry-id').value;
+                const data = {
+                    date: document.getElementById('entry-date').value,
+                    project_id: Number(document.getElementById('entry-project').value),
+                    work_type_id: Number(document.getElementById('entry-work-type').value),
+                    description: document.getElementById('entry-description').value,
+                    hours: Number(document.getElementById('entry-hours').value)
+                };
+
+                if (id) {
+                    data.id = Number(id);
+                    await apiUpdate('entries', data);
+                } else {
+                    await apiAdd('entries', data);
+                }
+                
+                closeModal();
+                renderDetailView(activeWeekData.startDate, activeWeekData.endDate);
+            };
+        }
+
+        function showView(viewName) {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('main-layout').classList.add('hidden');
+            document.getElementById('dashboard-view').classList.add('hidden');
+            document.getElementById('detail-view').classList.add('hidden');
+
+            if (viewName === 'login') {
+                document.getElementById('login-view').classList.remove('hidden');
+            } else {
+                document.getElementById('main-layout').classList.remove('hidden');
+                if (viewName === 'dashboard') {
+                    document.getElementById('dashboard-view').classList.remove('hidden');
+                    renderDashboard();
+                } else if (viewName === 'detail') {
+                    document.getElementById('detail-view').classList.remove('hidden');
+                }
+            }
+        }
+
+        async function renderDashboard() {
+            const entries = await apiGetAll('entries');
+            const weeks = generateWeeksForJan2024(); // Client specifically used Jan 2024
+            const tbody = document.getElementById('timesheets-tbody');
+            tbody.innerHTML = '';
+
+            weeks.forEach((week, index) => {
+                const weekEntries = entries.filter(e => {
+                    const d = new Date(e.date);
+                    return d >= week.startDate && d <= week.endDate;
+                });
+                const totalHours = weekEntries.reduce((sum, e) => sum + e.hours, 0);
+                
+                let status = 'MISSING';
+                let statusClass = 'bg-red-100 text-status-missing';
+                let actionText = 'Create';
+
+                if (totalHours >= 40) {
+                    status = 'COMPLETED';
+                    statusClass = 'bg-green-100 text-status-completed';
+                    actionText = 'View';
+                } else if (totalHours > 0) {
+                    status = 'INCOMPLETE';
+                    statusClass = 'bg-yellow-100 text-status-incomplete';
+                    actionText = 'Update';
+                }
+
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition';
+                row.innerHTML = `
+                    <td class="px-6 py-4 text-sm font-medium">${index + 1}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">${formatDateRange(week.startDate, week.endDate)}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-3 py-1 rounded-full text-xs font-bold ${statusClass}">${status}</span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <button onclick="viewWeek('${week.startDate.toISOString()}', '${week.endDate.toISOString()}')" class="text-primary font-bold hover:underline">${actionText}</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function viewWeek(startStr, endStr) {
+            const startDate = new Date(startStr);
+            const endDate = new Date(endStr);
+            activeWeekData = { startDate, endDate };
+            showView('detail');
+            renderDetailView(startDate, endDate);
+        }
+
+        async function renderDetailView(startDate, endDate) {
+            document.getElementById('detail-week-range').textContent = formatDateRange(startDate, endDate);
+            
+            const entries = await apiGetAll('entries');
+            const projects = await apiGetAll('projects');
+            const weekEntries = entries.filter(e => {
+                const d = new Date(e.date);
+                return d >= startDate && d <= endDate;
+            });
+
+            const totalHours = weekEntries.reduce((sum, e) => sum + e.hours, 0);
+            const percent = Math.min(Math.round((totalHours / 40) * 100), 100);
+            
+            document.getElementById('detail-hours-text').textContent = `${totalHours}/40 hrs`;
+            document.getElementById('detail-percent-text').textContent = `${percent}%`;
+            document.getElementById('detail-progress-bar').style.width = `${percent}%`;
+
+            const listContainer = document.getElementById('daily-list');
+            listContainer.innerHTML = '';
+
+            // Group by date
+            const days = [];
+            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                days.push(new Date(d));
+            }
+
+            days.forEach(day => {
+                const dayEntries = weekEntries.filter(e => e.date === day.toISOString().split('T')[0]);
+                const daySection = document.createElement('div');
+                
+                let entriesHtml = dayEntries.map(e => {
+                    const project = projects.find(p => p.id === e.project_id);
+                    return `
+                        <div class="flex items-center justify-between p-4 bg-white border rounded-xl group hover:shadow-md transition">
+                            <div class="flex items-center gap-6">
+                                <div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
+                                <div>
+                                    <p class="font-medium">${e.description}</p>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="text-sm text-gray-500">${e.hours} hrs</span>
+                                        <span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] uppercase font-bold tracking-tight">${project ? project.name : 'Unknown'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="openModalForEdit(${e.id})" class="p-2 text-gray-400 hover:text-primary transition">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                </button>
+                                <button onclick="deleteEntry(${e.id})" class="p-2 text-gray-400 hover:text-red-500 transition">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                daySection.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-[100px_1fr] gap-4">
+                        <div class="pt-4">
+                            <h4 class="font-bold text-lg">${day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</h4>
+                        </div>
+                        <div class="space-y-3">
+                            ${entriesHtml}
+                            <button onclick="openModalForAdd('${day.toISOString().split('T')[0]}')" class="w-full py-4 border-2 border-dashed border-blue-200 rounded-xl text-primary font-bold hover:bg-blue-50 transition flex items-center justify-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add new task
+                            </button>
+                        </div>
+                    </div>
+                `;
+                listContainer.appendChild(daySection);
+            });
+        }
+
+        async function openModalForAdd(date) {
+            document.getElementById('modal-title').textContent = 'Add New Entry';
+            document.getElementById('entry-id').value = '';
+            document.getElementById('entry-date').value = date;
+            document.getElementById('entry-description').value = '';
+            document.getElementById('entry-hours').value = 0;
+            
+            await populateModalDropdowns();
+            document.getElementById('entry-modal').classList.remove('hidden');
+        }
+
+        async function openModalForEdit(id) {
+            const entry = await apiGetById('entries', id);
+            document.getElementById('modal-title').textContent = 'Edit Entry';
+            document.getElementById('entry-id').value = entry.id;
+            document.getElementById('entry-date').value = entry.date;
+            document.getElementById('entry-description').value = entry.description;
+            document.getElementById('entry-hours').value = entry.hours;
+            
+            await populateModalDropdowns();
+            document.getElementById('entry-project').value = entry.project_id;
+            document.getElementById('entry-work-type').value = entry.work_type_id;
+            
+            document.getElementById('entry-modal').classList.remove('hidden');
+        }
+
+        async function populateModalDropdowns() {
+            const projects = await apiGetAll('projects');
+            const workTypes = await apiGetAll('work_types');
+            
+            const projectSelect = document.getElementById('entry-project');
+            projectSelect.innerHTML = '<option value="">Project Name</option>' + 
+                projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+                
+            const workTypeSelect = document.getElementById('entry-work-type');
+            workTypeSelect.innerHTML = '<option value="">Work Type</option>' + 
+                workTypes.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+        }
+
+        function closeModal() {
+            document.getElementById('entry-modal').classList.add('hidden');
+        }
+
+        function adjustHours(delta) {
+            const input = document.getElementById('entry-hours');
+            let val = Number(input.value) + delta;
+            if (val < 0) val = 0;
+            input.value = val;
+        }
+
+        async function deleteEntry(id) {
+            if (confirm('Are you sure you want to delete this task?')) {
+                await apiDelete('entries', id);
+                renderDetailView(activeWeekData.startDate, activeWeekData.endDate);
+            }
+        }
+
+        // --- UTILS ---
+        function generateWeeksForJan2024() {
+            // Static weeks for Jan 2024 as per design
+            return [
+                { startDate: new Date('2024-01-01'), endDate: new Date('2024-01-05') },
+                { startDate: new Date('2024-01-08'), endDate: new Date('2024-01-12') },
+                { startDate: new Date('2024-01-15'), endDate: new Date('2024-01-19') },
+                { startDate: new Date('2024-01-22'), endDate: new Date('2024-01-26') },
+                { startDate: new Date('2024-01-29'), endDate: new Date('2024-02-02') },
+            ];
+        }
+
+        function formatDateRange(start, end) {
+            const options = { day: 'numeric', month: 'long', year: 'numeric' };
+            const startDay = start.getDate();
+            const endStr = end.toLocaleDateString('en-GB', options);
+            return `${startDay} - ${endStr}`;
+        }
+
+        // Start the app
+        init();
+    </script>
+</body>
+</html>
