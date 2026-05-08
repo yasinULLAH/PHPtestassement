@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ticktock - Timesheet Management</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563EB">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -60,6 +63,32 @@
                         </div>
                         <button type="submit" class="w-full bg-primary text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition">Sign in</button>
                     </form>
+                    <div class="mt-4 text-center">
+                        <a href="#" id="show-register-btn" class="text-sm text-primary font-medium hover:underline">Create an account</a>
+                    </div>
+                </div>
+
+                <div id="register-wrap" class="max-w-md w-full hidden">
+                    <h2 class="text-3xl font-bold mb-2">Create Account</h2>
+                    <p class="text-gray-500 mb-8">Sign up to start tracking your time locally.</p>
+                    <form id="register-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Name</label>
+                            <input type="text" id="reg-name" class="w-full p-3 border rounded-lg" placeholder="John Doe" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Email</label>
+                            <input type="email" id="reg-email" class="w-full p-3 border rounded-lg" placeholder="name@example.com" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Password</label>
+                            <input type="password" id="reg-password" class="w-full p-3 border rounded-lg" placeholder="••••••••" required>
+                        </div>
+                        <button type="submit" class="w-full bg-primary text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition">Register</button>
+                    </form>
+                    <div class="mt-4 text-center">
+                        <a href="#" id="show-login-btn" class="text-sm text-primary font-medium hover:underline">Already have an account? Sign in</a>
+                    </div>
                 </div>
             </div>
             <div class="hidden lg:flex w-1/2 bg-primary items-center justify-center p-12 relative overflow-hidden">
@@ -91,6 +120,13 @@
                             <p id="user-display-name" class="text-sm font-semibold">John Doe</p>
                             <p class="text-xs text-gray-500">Employee</p>
                         </div>
+                        <button id="backup-btn" title="Backup Data" class="p-2 rounded-full hover:bg-gray-100 hidden sm:block">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                        </button>
+                        <button id="restore-btn" title="Restore Data" class="p-2 rounded-full hover:bg-gray-100 hidden sm:block relative">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            <input type="file" id="restore-file" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".json">
+                        </button>
                         <button id="logout-btn" class="p-2 rounded-full hover:bg-gray-100">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -358,18 +394,59 @@
         }
 
         function setupEventListeners() {
-            document.getElementById('login-form').onsubmit = (e) => {
+            document.getElementById('login-form').onsubmit = async (e) => {
                 e.preventDefault();
-                // Dummy login
-                currentUserId = 1;
-                sessionStorage.setItem('ticktock_user', JSON.stringify({ id: 1, name: 'John Doe' }));
-                showView('dashboard');
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+
+                const users = await apiGetAll('users');
+                let user = users.find(u => u.email === email && u.password === password);
+
+                if (!user && email === 'name@example.com' && password === 'password') {
+                    // Fallback to dummy
+                    user = { id: 1, name: 'John Doe', email: 'name@example.com' };
+                }
+
+                if (user) {
+                    currentUserId = user.id;
+                    sessionStorage.setItem('ticktock_user', JSON.stringify(user));
+                    document.getElementById('user-display-name').textContent = user.name;
+                    showView('dashboard');
+                } else {
+                    alert('Invalid credentials');
+                }
+            };
+
+            document.getElementById('register-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('reg-name').value;
+                const email = document.getElementById('reg-email').value;
+                const password = document.getElementById('reg-password').value;
+                
+                await apiAdd('users', { name, email, password });
+                alert('Registration successful! Please login.');
+                document.getElementById('show-login-btn').click();
+            };
+
+            document.getElementById('show-register-btn').onclick = (e) => {
+                e.preventDefault();
+                document.getElementById('login-form').parentElement.classList.add('hidden');
+                document.getElementById('register-wrap').classList.remove('hidden');
+            };
+
+            document.getElementById('show-login-btn').onclick = (e) => {
+                e.preventDefault();
+                document.getElementById('register-wrap').classList.add('hidden');
+                document.getElementById('login-form').parentElement.classList.remove('hidden');
             };
 
             document.getElementById('logout-btn').onclick = () => {
                 sessionStorage.removeItem('ticktock_user');
                 showView('login');
             };
+
+            document.getElementById('backup-btn').onclick = exportData;
+            document.getElementById('restore-file').onchange = importData;
 
             document.getElementById('entry-form').onsubmit = async (e) => {
                 e.preventDefault();
@@ -392,6 +469,59 @@
                 closeModal();
                 renderDetailView(activeWeekData.startDate, activeWeekData.endDate);
             };
+        }
+
+        async function exportData() {
+            const data = {
+                users: await apiGetAll('users'),
+                projects: await apiGetAll('projects'),
+                work_types: await apiGetAll('work_types'),
+                entries: await apiGetAll('entries')
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", "ticktock_backup.json");
+            document.body.appendChild(dlAnchorElem);
+            dlAnchorElem.click();
+            document.body.removeChild(dlAnchorElem);
+        }
+
+        async function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    await clearStore('users');
+                    await clearStore('projects');
+                    await clearStore('work_types');
+                    await clearStore('entries');
+                    
+                    for(let u of data.users || []) await apiAdd('users', u);
+                    for(let p of data.projects || []) await apiAdd('projects', p);
+                    for(let w of data.work_types || []) await apiAdd('work_types', w);
+                    for(let en of data.entries || []) await apiAdd('entries', en);
+                    
+                    alert('Data restored successfully. Please login again.');
+                    sessionStorage.removeItem('ticktock_user');
+                    window.location.reload();
+                } catch(err) {
+                    alert('Error restoring data. Invalid file format.');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function clearStore(storeName) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(storeName, 'readwrite');
+                const store = tx.objectStore(storeName);
+                const req = store.clear();
+                req.onsuccess = () => resolve();
+            });
         }
 
         function showView(viewName) {
@@ -622,6 +752,14 @@
 
         // Start the app
         init();
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW registered'))
+                    .catch(err => console.error('SW registration failed', err));
+            });
+        }
     </script>
 </body>
 </html>

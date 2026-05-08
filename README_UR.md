@@ -1,50 +1,43 @@
-# ticktock - Timesheet Management App
+# ticktock - ٹائم شیٹ مینجمنٹ ایپ
 
-A sleek, SaaS-style timesheet management application built as a single-file solution. This project was developed as part of a technical assessment to demonstrate UI/UX accuracy, API integration simulation, and state management using native web technologies.
+ایک جدید اور خوبصورت ٹائم شیٹ مینجمنٹ ایپلی کیشن جو سنگل فائل سلوشن کے طور پر بنائی گئی تھی۔ اب یہ ایک مکمل PWA (Progressive Web App) میں تبدیل ہو چکی ہے تاکہ اسے آف لائن اور ڈیسک ٹاپ/موبائل پر انسٹال کر کے استعمال کیا جا سکے۔
 
-## 🚀 Live Demo
-**[Link to your hosted demo, e.g., GitHub Pages]**
-*(Note to User: See instructions below on how to set this up)*
+## 🚀 لائیو ڈیمو
+**[یہاں اپنے ڈیمو کا لنک شامل کریں]**
 
-## 🛠️ Frameworks & Libraries Used
-- **Vanilla HTML5 & JavaScript (ES6+)**: Core application logic.
-- **Tailwind CSS (via CDN)**: For modern, responsive, and pixel-perfect styling.
-- **IndexedDB**: For persistent, client-side data storage without a backend.
-- **Inter Font**: Sourced via Google Fonts for typography.
-- **Heroicons**: SVG icons for the UI.
+## 🛠️ استعمال شدہ ٹیکنالوجیز اور لائبریریاں
+- **Vanilla HTML5 اور JavaScript (ES6+)**: ایپ کی بنیادی لاجک کے لیے۔
+- **Tailwind CSS**: جدید اور ریسپانسیو ڈیزائن کے لیے۔
+- **IndexedDB**: براؤزر میں مقامی طور پر ڈیٹا محفوظ کرنے کے لیے (بغیر کسی سرور یا بیک اینڈ کے)۔
+- **PWA (Progressive Web App)**: ایپ کو موبائل اور ڈیسک ٹاپ پر انسٹال کرنے کی سہولت (`manifest.json` اور `sw.js` کا استعمال)۔
+- **Inter Font**: ٹائپوگرافی کے لیے گوگل فونٹس سے۔
+- **Heroicons**: UI میں خوبصورت آئیکنز کے لیے۔
 
-## 📋 Setup Instructions
-Since this is a self-contained application, no installation or build process is required.
+## ✨ نئی خصوصیات (Client-side Features)
+- **PWA کی سہولت**: اب آپ اس ایپ کو اپنے فون یا کمپیوٹر پر ایک عام ایپ کی طرح انسٹال کر سکتے ہیں۔ سروس ورکرز (Service Workers) کی مدد سے یہ آف لائن بھی کام کرتی ہے۔
+- **صارف کی رجسٹریشن (User Registration)**: اب صارفین اپنا نیا اکاؤنٹ بنا سکتے ہیں، جو براؤزر کے مقامی ڈیٹا بیس میں محفوظ ہوتا ہے۔
+- **ڈیٹا بیک اپ اور ریسٹور (Data Backup & Restore)**: چونکہ یہ ایپ سرور کا استعمال نہیں کرتی، اس لیے صارفین اپنے مکمل ڈیٹا (صارفین، پروجیکٹس، اور ٹائم شیٹس) کو JSON فائل کی شکل میں ڈاؤن لوڈ (Backup) کر سکتے ہیں اور کسی بھی وقت واپس اپ لوڈ (Restore) کر کے اپنا ڈیٹا بحال کر سکتے ہیں۔
 
-1.  Clone this repository or download the `index.html` file.
-2.  Open `index.html` directly in any modern web browser (Chrome, Firefox, Edge, Safari).
-3.  **Login Credentials**:
-    - **Email**: `name@example.com`
-    - **Password**: `password` (or any text, as it uses dummy authentication).
+## 📋 استعمال کی ہدایات
+یہ ایک مکمل سیلف کنٹینڈ ایپلی کیشن ہے، اس لیے کسی پیچیدہ سیٹ اپ کی ضرورت نہیں ہے۔
 
-## 💡 Assumptions & Notes
-- **Dummy Authentication**: As requested, the login system is a simulation. It stores a session token in `sessionStorage` upon a successful "login".
-- **API Simulation**: The application uses an asynchronous API layer that interacts with IndexedDB. This layer simulates network latency using Promises and `setTimeout` to demonstrate real-world integration patterns.
-- **Data Persistence**: All data (projects, tasks, hours) is saved locally in your browser's IndexedDB. Clearing browser data will reset the app state.
-- **Date Scope**: The dashboard is specifically optimized for January 2024 to match the primary focus of the Figma designs provided.
-- **Responsive Design**: The UI is fully responsive, adapting from a split-screen desktop layout to a stacked mobile-friendly view.
+1. اس پروجیکٹ کی فائلز (`index.html`, `manifest.json`, `sw.js`, `icon.svg`) ڈاؤن لوڈ کریں۔
+2. کسی بھی لوکل سرور کے ذریعے (مثلاً VS Code Live Server یا `php -S localhost:8000`) چلائیں تاکہ سروس ورکرز اور PWA فیچرز درست طریقے سے کام کریں۔
+3. **لاگ ان کی تفصیلات**:
+   - آپ رجسٹریشن پیج کے ذریعے اپنا نیا اکاؤنٹ بنا کر لاگ ان کر سکتے ہیں۔
+   - یا پھر ڈیفالٹ ٹیسٹنگ اکاؤنٹ استعمال کریں:
+     - **ای میل**: `name@example.com`
+     - **پاس ورڈ**: `password`
 
-## ⏳ Time Spent
-- **Research & Design Analysis**: 1 hour
-- **Data Layer & IndexedDB Implementation**: 1.5 hours
-- **UI Development & Styling**: 2.5 hours
-- **Logic & Integration**: 1 hour
-- **Total**: ~6 hours
+## 💡 اہم نوٹس اور مفروضات
+- **مقامی ڈیٹا (Local Storage)**: آپ کا تمام ڈیٹا آپ کے براؤزر کے IndexedDB میں محفوظ ہوتا ہے۔ براؤزر کا ڈیٹا (Cache/Storage) کلیئر کرنے سے ایپ کا سارا ڈیٹا ڈیلیٹ ہو جائے گا، اس لیے ایپ میں موجود **Backup Data** کے بٹن کا استعمال باقاعدگی سے کریں۔
+- **آف لائن فرسٹ**: PWA انضمام کی بدولت ایپ انٹرنیٹ کے بغیر بھی لوڈ ہو سکتی ہے۔
+- **ڈیٹا کی ساخت**: ڈیش بورڈ کو خاص طور پر جنوری 2024 کے ٹائم شیٹس دکھانے کے لیے ڈیزائن کیا گیا ہے۔
 
 ---
-
-### How to complete your submission:
-
-1.  **Create GitHub Repo**: 
-    - Create a new public repository on GitHub.
-    - Upload `index.html` and this `README.md`.
-2.  **Working Online Demo**:
-    - Go to your Repo **Settings** > **Pages**.
-    - Set the Branch to `main` and the folder to `/ (root)`.
-    - GitHub will give you a URL (e.g., `https://yourusername.github.io/reponame/`). 
-    - Update the **Live Demo** link at the top of this README with that URL.
+**وقت کی تقسیم (Time Spent):**
+- ریسرچ اور منصوبہ بندی: 1 گھنٹہ
+- IndexedDB اور ڈیٹا لیئر: 1.5 گھنٹے
+- UI اور اسٹائلنگ: 2.5 گھنٹے
+- PWA، بیک اپ اور رجسٹریشن فیچرز: 1.5 گھنٹے
+- **کل وقت**: ~6.5 گھنٹے
