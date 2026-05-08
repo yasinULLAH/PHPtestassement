@@ -1,4 +1,4 @@
-# ticktock — Timesheet Management App
+# ticktock — Timesheet Management App (PWA)
 
 A sleek, SaaS-style timesheet management application built as a single-file solution. It has now been upgraded to a full PWA (Progressive Web App) to allow for offline use and installation on both desktop and mobile devices.
 
@@ -17,6 +17,7 @@ A sleek, SaaS-style timesheet management application built as a single-file solu
 - **PWA Capabilities**: You can now install this app on your phone or computer like a native application. It works offline thanks to Service Workers.
 - **User Registration**: Users can now create their own accounts locally. This data is stored securely in the browser's IndexedDB.
 - **Data Backup & Restore**: Since the app is serverless, users can export their entire database (Users, Projects, and Timesheets) as a JSON file. This file can be imported back at any time to restore the data on a different device or after clearing browser storage.
+- **Responsive Management**: Surgical entry management and weekly dashboard status tracking tailored for local use.
 
 ## 📋 Usage Instructions
 This is a self-contained application, so no complex setup is required.
@@ -39,5 +40,7 @@ This is a self-contained application, so no complex setup is required.
 - Research & Planning: 1 Hour
 - IndexedDB & Data Layer: 1.5 Hours
 - UI & Styling: 2.5 Hours
-- PWA, Backup, and Registration: 1.5 Hours
-- **Total Time**: ~6.5 Hours
+- PWA, Backup, and Registration: 2 Hours
+- **Total Time**: ~7 Hours
+
+*© 2026 tentwenty. All rights reserved.*

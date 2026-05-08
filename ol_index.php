@@ -5,7 +5,7 @@
  * Reasons for Native: Zero dependency bloat, unmatched performance, future-proof standards.
  */
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'ticktock_db');
+define('DB_NAME', 'ticktock_db_old');
 define('DB_USER', 'root');
 define('DB_PASS', 'root');
 define('DB_CHARSET', 'utf8mb4');
@@ -15,7 +15,6 @@ define('SESSION_ABSOLUTE_TIMEOUT', 28800);
 
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_strict_mode', 1);
-date_default_timezone_set('UTC'); // Or a configurable timezone
 session_start();
 
 function getDB(): PDO {
@@ -151,24 +150,6 @@ function getWeeksInRange(string $startDate, string $endDate): array {
     return $weeks;
 }
 
-function checkRateLimit(): void {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    try {
-        $db = getDB();
-        $db->prepare("INSERT INTO login_attempts (ip_address) VALUES (?)")->execute([$ip]);
-        $stmt = $db->prepare("SELECT COUNT(*) FROM login_attempts WHERE ip_address = ? AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
-        $stmt->execute([$ip]);
-        if ((int)$stmt->fetchColumn() > 10) {
-            jsonError('Too many login attempts. Please try again in 15 minutes.', 429);
-        }
-    } catch (Exception $e) {}
-}
-
-function logEmail(string $to, string $subject, string $body): void {
-    $entry = "[" . date('Y-m-d H:i:s') . "] TO: $to | SUBJECT: $subject\nBODY: $body\n" . str_repeat('-', 40) . "\n";
-    file_put_contents('email.txt', $entry, FILE_APPEND);
-}
-
 $api = $_GET['api'] ?? '';
 
 if ($api !== '') {
@@ -193,7 +174,6 @@ if ($api !== '') {
 
         case 'login':
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            checkRateLimit();
             $body = json_decode(file_get_contents('php://input'), true) ?? [];
             $email = trim($body['email'] ?? '');
             $password = $body['password'] ?? '';
@@ -217,7 +197,7 @@ if ($api !== '') {
                 }
                 $db->prepare("DELETE FROM captcha_store WHERE token = ?")->execute([$captchaToken]);
 
-                $stmt = $db->prepare("SELECT id, email, password_hash, name, role, is_approved FROM users WHERE email = ? AND is_active = 1 AND is_deleted = 0");
+                $stmt = $db->prepare("SELECT id, email, password_hash, name, role, is_approved FROM users WHERE email = ? AND is_active = 1");
                 $stmt->execute([$email]);
                 $user = $stmt->fetch();
 
@@ -228,8 +208,6 @@ if ($api !== '') {
                 if ($user['is_approved'] == 0) {
                     jsonError('Your account is pending approval by an admin.');
                 }
-
-                $db->prepare("DELETE FROM login_attempts WHERE ip_address = ?")->execute([$_SERVER['REMOTE_ADDR'] ?? 'unknown']);
 
                 session_regenerate_id(true);
                 $_SESSION['user_id'] = $user['id'];
@@ -313,25 +291,11 @@ if ($api !== '') {
 
             try {
                 $db = getDB();
-                $uStmt = $db->prepare("SELECT standard_hours FROM users WHERE id = ?");
-                $uStmt->execute([$userId]);
-                $stdHours = (float)($uStmt->fetchColumn() ?: 40.00);
-
                 $stmt = $db->prepare("SELECT date, SUM(hours) as total_hours FROM timesheet_entries WHERE user_id = ? AND date BETWEEN ? AND ? GROUP BY date");
                 $stmt->execute([$userId, $startDate, $endDate]);
                 $entriesByDate = [];
                 while ($row = $stmt->fetch()) {
                     $entriesByDate[$row['date']] = (float)$row['total_hours'];
-                }
-
-                $sStmt = $db->prepare("SELECT year, week, status, rejection_reason FROM timesheet_submissions WHERE user_id = ?");
-                $sStmt->execute([$userId]);
-                $subs = [];
-                while ($srow = $sStmt->fetch()) {
-                    $subs[$srow['year'] . '-' . $srow['week']] = [
-                        'status' => $srow['status'],
-                        'reason' => $srow['rejection_reason']
-                    ];
                 }
 
                 $weeks = getWeeksInRange($startDate, $endDate);
@@ -346,15 +310,8 @@ if ($api !== '') {
                         $totalHours += $entriesByDate[$ds] ?? 0.0;
                         $d->modify('+1 day');
                     }
-                    
-                    $subInfo = $subs[$w['year'] . '-' . $w['week']] ?? null;
                     $status = 'missing';
-                    $reason = '';
-                    if ($subInfo) {
-                        $status = $subInfo['status'];
-                        $reason = $subInfo['reason'];
-                    }
-                    elseif ($totalHours >= $stdHours) $status = 'completed';
+                    if ($totalHours >= 40) $status = 'completed';
                     elseif ($totalHours > 0) $status = 'incomplete';
 
                     $startDt = new DateTime($w['start']);
@@ -369,9 +326,7 @@ if ($api !== '') {
                         'date_end' => $w['end'],
                         'date_label' => $dateLabel,
                         'total_hours' => $totalHours,
-                        'std_hours' => $stdHours,
                         'status' => $status,
-                        'rejection_reason' => $reason
                     ];
                 }
                 jsonOut(['success' => true, 'timesheets' => $result]);
@@ -422,17 +377,6 @@ if ($api !== '') {
 
                 try {
                     $db = getDB();
-                    // Check submission status
-                    $dt = new DateTime($date);
-                    $year = (int)$dt->format('o');
-                    $week = (int)$dt->format('W');
-                    $sStmt = $db->prepare("SELECT status FROM timesheet_submissions WHERE user_id = ? AND year = ? AND week = ?");
-                    $sStmt->execute([$userId, $year, $week]);
-                    $subStatus = $sStmt->fetchColumn();
-                    if ($subStatus === 'pending' || $subStatus === 'approved') {
-                        jsonError('This week is ' . $subStatus . ' and locked for editing.');
-                    }
-
                     $stmt = $db->prepare("SELECT id FROM projects WHERE id = ? AND is_active = 1");
                     $stmt->execute([$projectId]);
                     if (!$stmt->fetch()) jsonError('Invalid project.');
@@ -462,21 +406,9 @@ if ($api !== '') {
                 if ($id <= 0) jsonError('Invalid entry ID.');
                 try {
                     $db = getDB();
-                    $stmt = $db->prepare("SELECT date FROM timesheet_entries WHERE id = ? AND user_id = ?");
+                    $stmt = $db->prepare("SELECT id FROM timesheet_entries WHERE id = ? AND user_id = ?");
                     $stmt->execute([$id, $userId]);
-                    $entryDate = $stmt->fetchColumn();
-                    if (!$entryDate) jsonError('Entry not found or access denied.', 403);
-
-                    $dt = new DateTime($entryDate);
-                    $year = (int)$dt->format('o');
-                    $week = (int)$dt->format('W');
-                    $sStmt = $db->prepare("SELECT status FROM timesheet_submissions WHERE user_id = ? AND year = ? AND week = ?");
-                    $sStmt->execute([$userId, $year, $week]);
-                    $subStatus = $sStmt->fetchColumn();
-                    if ($subStatus === 'pending' || $subStatus === 'approved') {
-                        jsonError('This week is ' . $subStatus . ' and locked.');
-                    }
-
+                    if (!$stmt->fetch()) jsonError('Entry not found or access denied.', 403);
                     $db->prepare("DELETE FROM timesheet_entries WHERE id = ? AND user_id = ?")->execute([$id, $userId]);
                     jsonOut(['success' => true, 'message' => 'Entry deleted.']);
                 } catch (PDOException $e) {
@@ -491,77 +423,29 @@ if ($api !== '') {
             requireAuth();
             try {
                 $db = getDB();
-                $where = ($_SESSION['user_role'] === 'admin') ? "" : " WHERE is_active = 1";
-                $projects = $db->query("SELECT id, name, is_active FROM projects $where ORDER BY name ASC")->fetchAll();
+                $projects = $db->query("SELECT id, name FROM projects WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
                 jsonOut(['success' => true, 'projects' => $projects]);
             } catch (PDOException $e) {
                 jsonError('Failed to load projects.', 500);
             }
             break;
 
-        case 'admin_project_save':
-            requireAdmin();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $id = (int)($body['id'] ?? 0);
-            $name = sanitizeStr($body['name'] ?? '');
-            $isActive = isset($body['is_active']) ? (int)$body['is_active'] : 1;
-            if (empty($name)) jsonError('Project name is required.');
-            try {
-                $db = getDB();
-                if ($id > 0) {
-                    $stmt = $db->prepare("UPDATE projects SET name = ?, is_active = ? WHERE id = ?");
-                    $stmt->execute([$name, $isActive, $id]);
-                    jsonOut(['success' => true, 'message' => 'Project updated successfully.']);
-                } else {
-                    $stmt = $db->prepare("INSERT INTO projects (name, is_active) VALUES (?, ?)");
-                    $stmt->execute([$name, $isActive]);
-                    jsonOut(['success' => true, 'message' => 'Project added successfully.', 'id' => (int)$db->lastInsertId()]);
-                }
-            } catch (PDOException $e) { jsonError('Failed to save project.', 500); }
-            break;
-
         case 'work_types':
             requireAuth();
             try {
                 $db = getDB();
-                $where = ($_SESSION['user_role'] === 'admin') ? "" : " WHERE is_active = 1";
-                $types = $db->query("SELECT id, name, is_active FROM work_types $where ORDER BY name ASC")->fetchAll();
+                $types = $db->query("SELECT id, name FROM work_types WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
                 jsonOut(['success' => true, 'work_types' => $types]);
             } catch (PDOException $e) {
                 jsonError('Failed to load work types.', 500);
             }
             break;
 
-        case 'admin_work_type_save':
-            requireAdmin();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $id = (int)($body['id'] ?? 0);
-            $name = sanitizeStr($body['name'] ?? '');
-            $isActive = isset($body['is_active']) ? (int)$body['is_active'] : 1;
-            if (empty($name)) jsonError('Work type name is required.');
-            try {
-                $db = getDB();
-                if ($id > 0) {
-                    $stmt = $db->prepare("UPDATE work_types SET name = ?, is_active = ? WHERE id = ?");
-                    $stmt->execute([$name, $isActive, $id]);
-                    jsonOut(['success' => true, 'message' => 'Work type updated successfully.']);
-                } else {
-                    $stmt = $db->prepare("INSERT INTO work_types (name, is_active) VALUES (?, ?)");
-                    $stmt->execute([$name, $isActive]);
-                    jsonOut(['success' => true, 'message' => 'Work type added successfully.', 'id' => (int)$db->lastInsertId()]);
-                }
-            } catch (PDOException $e) { jsonError('Failed to save work type.', 500); }
-            break;
-
         case 'admin_users':
             requireAdmin();
             try {
                 $db = getDB();
-                $users = $db->query("SELECT id, name, email, role, standard_hours, is_approved, is_active, created_at FROM users WHERE is_deleted = 0 ORDER BY created_at DESC")->fetchAll();
+                $users = $db->query("SELECT id, name, email, role, is_approved, is_active, created_at FROM users ORDER BY created_at DESC")->fetchAll();
                 jsonOut(['success' => true, 'users' => $users]);
             } catch (PDOException $e) {
                 jsonError('Failed to load users.', 500);
@@ -577,16 +461,14 @@ if ($api !== '') {
             $role = sanitizeStr($body['role'] ?? 'user');
             $isApproved = isset($body['is_approved']) ? (int)$body['is_approved'] : 0;
             $isActive = isset($body['is_active']) ? (int)$body['is_active'] : 1;
-            $standardHours = isset($body['standard_hours']) ? round((float)$body['standard_hours'], 2) : 40.00;
 
             if ($id <= 0) jsonError('Invalid user ID.');
             if (!in_array($role, ['admin', 'user'])) jsonError('Invalid role.');
-            if ($standardHours < 0 || $standardHours > 168) jsonError('Invalid standard hours.');
 
             try {
                 $db = getDB();
-                $stmt = $db->prepare("UPDATE users SET role = ?, is_approved = ?, is_active = ?, standard_hours = ? WHERE id = ?");
-                $stmt->execute([$role, $isApproved, $isActive, $standardHours, $id]);
+                $stmt = $db->prepare("UPDATE users SET role = ?, is_approved = ?, is_active = ? WHERE id = ?");
+                $stmt->execute([$role, $isApproved, $isActive, $id]);
                 jsonOut(['success' => true, 'message' => 'User updated successfully.']);
             } catch (PDOException $e) {
                 jsonError('Failed to update user.', 500);
@@ -604,148 +486,11 @@ if ($api !== '') {
 
             try {
                 $db = getDB();
-                $db->prepare("UPDATE users SET is_deleted = 1, is_active = 0 WHERE id = ?")->execute([$id]);
-                jsonOut(['success' => true, 'message' => 'User account deactivated (Soft Delete).']);
+                $db->prepare("DELETE FROM users WHERE id = ?")->execute([$id]);
+                jsonOut(['success' => true, 'message' => 'User deleted.']);
             } catch (PDOException $e) {
                 jsonError('Failed to delete user.', 500);
             }
-            break;
-
-        case 'submit_week':
-            requireAuth();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $year = (int)($body['year'] ?? 0);
-            $week = (int)($body['week'] ?? 0);
-            $userId = $_SESSION['user_id'];
-            if ($year <= 0 || $week <= 0) jsonError('Invalid year/week.');
-            try {
-                $db = getDB();
-                $range = getWeekRange($year, $week);
-                $stmt = $db->prepare("SELECT COUNT(*) FROM timesheet_entries WHERE user_id = ? AND date BETWEEN ? AND ?");
-                $stmt->execute([$userId, $range['start'], $range['end']]);
-                if ($stmt->fetchColumn() == 0) jsonError('No entries found for this week. Cannot submit empty timesheet.');
-
-                $stmt = $db->prepare("INSERT INTO timesheet_submissions (user_id, year, week, status) VALUES (?, ?, ?, 'pending') ON DUPLICATE KEY UPDATE status = 'pending', reviewed_at = NULL, reviewed_by = NULL");
-                $stmt->execute([$userId, $year, $week]);
-                $submissionId = $db->lastInsertId() ?: $db->query("SELECT id FROM timesheet_submissions WHERE user_id=$userId AND year=$year AND week=$week")->fetchColumn();
-                $db->prepare("UPDATE timesheet_entries SET submission_id = ? WHERE user_id = ? AND date BETWEEN ? AND ?")->execute([$submissionId, $userId, $range['start'], $range['end']]);
-                jsonOut(['success' => true, 'message' => 'Timesheet submitted for approval.']);
-            } catch (PDOException $e) { jsonError('Submission failed.', 500); }
-            break;
-
-        case 'admin_submissions':
-            requireAdmin();
-            try {
-                $db = getDB();
-                $subs = $db->query("SELECT ts.*, u.name as user_name, u.email as user_email FROM timesheet_submissions ts JOIN users u ON u.id = ts.user_id WHERE ts.status = 'pending' ORDER BY ts.submitted_at DESC")->fetchAll();
-                jsonOut(['success' => true, 'submissions' => $subs]);
-            } catch (PDOException $e) { jsonError('Failed to load submissions.', 500); }
-            break;
-
-        case 'admin_submission_review':
-            requireAdmin();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $id = (int)($body['id'] ?? 0);
-            $status = sanitizeStr($body['status'] ?? '');
-            $reason = sanitizeStr($body['reason'] ?? '');
-            if (!in_array($status, ['approved', 'rejected'])) jsonError('Invalid status.');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("UPDATE timesheet_submissions SET status = ?, rejection_reason = ?, reviewed_at = NOW(), reviewed_by = ? WHERE id = ?");
-                $stmt->execute([$status, ($status === 'rejected' ? $reason : null), $_SESSION['user_id'], $id]);
-                jsonOut(['success' => true, 'message' => 'Submission ' . $status . '.']);
-            } catch (PDOException $e) { jsonError('Failed to review submission.', 500); }
-            break;
-
-        case 'update_profile':
-            requireAuth();
-            verifyCsrf();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $name = sanitizeStr($body['name'] ?? '');
-            $email = trim($body['email'] ?? '');
-            if (empty($name) || empty($email)) jsonError('Name and email are required.');
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) jsonError('Invalid email.');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
-                $stmt->execute([$email, $_SESSION['user_id']]);
-                if ($stmt->fetch()) jsonError('Email already in use.');
-                $stmt = $db->prepare("UPDATE users SET name = ?, email = ? WHERE id = ?");
-                $stmt->execute([$name, $email, $_SESSION['user_id']]);
-                $_SESSION['user_name'] = $name;
-                $_SESSION['user_email'] = $email;
-                jsonOut(['success' => true, 'message' => 'Profile updated.']);
-            } catch (PDOException $e) { jsonError('Failed to update profile.', 500); }
-            break;
-
-        case 'upload_avatar':
-            requireAuth();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('Method not allowed', 405);
-            if (!isset($_FILES['avatar'])) jsonError('No file uploaded.');
-            $file = $_FILES['avatar'];
-            if ($file['error'] !== UPLOAD_ERR_OK) jsonError('Upload failed.');
-            $allowed = ['image/jpeg', 'image/png', 'image/webp'];
-            if (!in_array($file['type'], $allowed)) jsonError('Invalid file type. Only JPG, PNG, and WebP allowed.');
-            if ($file['size'] > 2 * 1024 * 1024) jsonError('File too large. Max 2MB.');
-
-            $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-            $filename = 'avatar_' . $_SESSION['user_id'] . '_' . time() . '.' . $ext;
-            $uploadDir = 'uploads/avatars/';
-            if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-            $path = $uploadDir . $filename;
-
-            if (move_uploaded_file($file['tmp_name'], $path)) {
-                try {
-                    $db = getDB();
-                    $db->prepare("UPDATE users SET avatar_url = ? WHERE id = ?")->execute([$path, $_SESSION['user_id']]);
-                    jsonOut(['success' => true, 'avatar_url' => $path]);
-                } catch (PDOException $e) { jsonError('Failed to update database.', 500); }
-            } else {
-                jsonError('Failed to save file.');
-            }
-            break;
-
-        case 'forgot_password':
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $email = trim($body['email'] ?? '');
-            if (empty($email)) jsonError('Email is required.');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT id, name FROM users WHERE email = ? AND is_deleted = 0");
-                $stmt->execute([$email]);
-                $user = $stmt->fetch();
-                if ($user) {
-                    $token = bin2hex(random_bytes(32));
-                    $stmt = $db->prepare("UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?");
-                    $stmt->execute([$token, $user['id']]);
-                    logEmail($email, "Password Reset - ticktock", "Hi " . $user['name'] . ",\n\nUse this token to reset your password: $token\nIt expires in 1 hour.");
-                }
-                jsonOut(['success' => true, 'message' => 'If that email exists, a reset token has been generated. Check email.txt for simulation.']);
-            } catch (PDOException $e) { jsonError('Error processing request.', 500); }
-            break;
-
-        case 'reset_password':
-            $body = json_decode(file_get_contents('php://input'), true) ?? [];
-            $token = $body['token'] ?? '';
-            $newPass = $body['password'] ?? '';
-            if (empty($token) || empty($newPass)) jsonError('Token and password required.');
-            if (strlen($newPass) < 8) jsonError('Min 8 characters required.');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT id FROM users WHERE reset_token = ? AND reset_expires > NOW() AND is_deleted = 0");
-                $stmt->execute([$token]);
-                $user = $stmt->fetch();
-                if (!$user) jsonError('Invalid or expired token.');
-                $hash = password_hash($newPass, PASSWORD_BCRYPT, ['cost' => 12]);
-                $stmt = $db->prepare("UPDATE users SET password_hash = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?");
-                $stmt->execute([$hash, $user['id']]);
-                jsonOut(['success' => true, 'message' => 'Password reset successfully. You can now login.']);
-            } catch (PDOException $e) { jsonError('Reset failed.', 500); }
             break;
 
         case 'change_password':
@@ -772,45 +517,6 @@ if ($api !== '') {
             } catch (PDOException $e) {
                 jsonError('Failed to change password.', 500);
             }
-            break;
-
-        case 'reports':
-            requireAdmin();
-            $start = $_GET['start'] ?? date('Y-m-01');
-            $end = $_GET['end'] ?? date('Y-m-t');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT p.name as project_name, SUM(te.hours) as total_hours FROM timesheet_entries te JOIN projects p ON p.id = te.project_id WHERE te.date BETWEEN ? AND ? GROUP BY p.id ORDER BY total_hours DESC");
-                $stmt->execute([$start, $end]);
-                $projectStats = $stmt->fetchAll();
-
-                $stmt = $db->prepare("SELECT u.name as user_name, SUM(te.hours) as total_hours FROM timesheet_entries te JOIN users u ON u.id = te.user_id WHERE te.date BETWEEN ? AND ? GROUP BY u.id ORDER BY total_hours DESC");
-                $stmt->execute([$start, $end]);
-                $userStats = $stmt->fetchAll();
-
-                jsonOut(['success' => true, 'projects' => $projectStats, 'users' => $userStats]);
-            } catch (PDOException $e) { jsonError('Failed to load reports.', 500); }
-            break;
-
-        case 'export_csv':
-            requireAuth();
-            $userId = ($_SESSION['user_role'] === 'admin' && isset($_GET['user_id'])) ? (int)$_GET['user_id'] : $_SESSION['user_id'];
-            $start = $_GET['start'] ?? date('Y-01-01');
-            $end = $_GET['end'] ?? date('Y-12-31');
-            try {
-                $db = getDB();
-                $stmt = $db->prepare("SELECT te.date, p.name as project, wt.name as type, te.hours, te.description FROM timesheet_entries te JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE te.user_id = ? AND te.date BETWEEN ? AND ? ORDER BY te.date ASC");
-                $stmt->execute([$userId, $start, $end]);
-                $rows = $stmt->fetchAll();
-                
-                header('Content-Type: text/csv');
-                header('Content-Disposition: attachment; filename="timesheet_export_' . date('Ymd') . '.csv"');
-                $out = fopen('php://output', 'w');
-                fputcsv($out, ['Date', 'Project', 'Work Type', 'Hours', 'Description']);
-                foreach ($rows as $r) { fputcsv($out, $r); }
-                fclose($out);
-                exit;
-            } catch (PDOException $e) { jsonError('Export failed.', 500); }
             break;
 
         default:
@@ -939,8 +645,7 @@ input,select,textarea{font-family:var(--font)}
 .card{background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:var(--shadow-sm);overflow:hidden}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse}
-thead th{padding:.875rem 1.25rem;text-align:left;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);border-bottom:1px solid var(--border);border-right:1px solid var(--border);background:#FAFAFA;white-space:nowrap}
-thead th:last-child{border-right:none}
+thead th{padding:.875rem 1.25rem;text-align:left;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);border-bottom:1px solid var(--border);background:#FAFAFA;white-space:nowrap}
 thead th.sortable{cursor:pointer;user-select:none}
 thead th.sortable:hover{color:var(--text-secondary)}
 thead th .sort-arrow{margin-left:.25rem;opacity:.4}
@@ -1093,7 +798,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       <div class="check-wrap">
         <input type="checkbox" id="remember-me">
         <label for="remember-me">Remember me</label>
-        <button type="button" class="btn-ghost" id="btn-show-forgot" style="margin-left:auto">Forgot password?</button>
       </div>
       <button type="submit" class="btn-primary" id="btn-signin">Sign in</button>
       <div class="field-error visible" id="err-login" style="margin-top:.75rem;font-size:.8rem"></div>
@@ -1158,32 +862,10 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="user-dropdown" id="user-dropdown">
-        <div class="user-dropdown-item" id="btn-show-profile">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          My Profile
-        </div>
-        <div class="user-dropdown-divider"></div>
-        <div class="user-dropdown-item" id="btn-admin-users" style="display:none">
+        <div class="user-dropdown-item" id="btn-admin-dashboard" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           Manage Users
         </div>
-        <div class="user-dropdown-item" id="btn-admin-projects" style="display:none">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-          Manage Projects
-        </div>
-        <div class="user-dropdown-item" id="btn-admin-work-types" style="display:none">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-          Manage Work Types
-        </div>
-        <div class="user-dropdown-item" id="btn-admin-subs" style="display:none">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          Submissions
-        </div>
-        <div class="user-dropdown-item" id="btn-admin-reports" style="display:none">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-          Global Reports
-        </div>
-        <div class="user-dropdown-divider"></div>
         <div class="user-dropdown-item" id="btn-change-password">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           Change Password
@@ -1211,7 +893,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
               <th>USER</th>
               <th>EMAIL</th>
               <th>ROLE</th>
-              <th>STD HOURS</th>
               <th>STATUS</th>
               <th>ACTIONS</th>
             </tr>
@@ -1258,16 +939,13 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
             <option value="5" selected>5 per page</option>
             <option value="10">10 per page</option>
             <option value="25">25 per page</option>
-            <option value="50">50 per page</option>
-            <option value="100">100 per page</option>
-            <option value="999999">All</option>
           </select>
         </div>
         <div class="page-btns" id="page-btns"></div>
       </div>
     </div>
     <div class="footer-bar">
-      © 2026 tentwenty. All rights reserved. &nbsp;|&nbsp;
+      © 2024 tentwenty. All rights reserved. &nbsp;|&nbsp;
       Created by: <strong>Yasin Ullah</strong> – Bannu Software Solutions &nbsp;|&nbsp;
       <a href="https://www.yasinbss.com" target="_blank" rel="noopener">www.yasinbss.com</a> &nbsp;|&nbsp;
       WhatsApp: <a href="https://wa.me/923361593533">03361593533</a>
@@ -1283,10 +961,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       <div>
         <div class="detail-title">This week's timesheet</div>
         <div class="detail-range" id="detail-range-label"></div>
-        <div style="margin-top:0.75rem;display:flex;gap:0.5rem">
-            <button class="btn-blue-sm" id="btn-submit-week">Submit for Approval</button>
-            <button class="btn-outline" style="padding:0.4rem 0.75rem;font-size:0.75rem" id="btn-export-week">Export CSV</button>
-        </div>
       </div>
       <div class="progress-wrap">
         <div class="progress-label" id="progress-label">0/40 hrs</div>
@@ -1297,7 +971,7 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     </div>
     <div class="card animate__animated animate__fadeInUp" id="entries-container"></div>
     <div class="footer-bar">
-      © 2026 tentwenty. All rights reserved. &nbsp;|&nbsp;
+      © 2024 tentwenty. All rights reserved. &nbsp;|&nbsp;
       Created by: <strong>Yasin Ullah</strong> – Bannu Software Solutions &nbsp;|&nbsp;
       <a href="https://www.yasinbss.com" target="_blank" rel="noopener">www.yasinbss.com</a> &nbsp;|&nbsp;
       WhatsApp: <a href="https://wa.me/923361593533">03361593533</a>
@@ -1305,159 +979,6 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     <div class="print-footer">
       Created by: Yasin Ullah – Bannu Software Solutions | www.yasinbss.com | WhatsApp: 03361593533
     </div>
-  </div>
-
-  <div id="page-admin-projects" class="page">
-    <button class="btn-back btn-back-to-admin">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-      Back to Admin
-    </button>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
-        <div class="page-title" style="margin-bottom:0">Manage Projects</div>
-        <button class="btn-blue-sm" id="btn-add-project">+ Add Project</button>
-    </div>
-    <div class="card">
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>NAME</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
-          <tbody id="projects-mgmt-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="page-admin-work-types" class="page">
-    <button class="btn-back btn-back-to-admin">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-      Back to Admin
-    </button>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
-        <div class="page-title" style="margin-bottom:0">Manage Work Types</div>
-        <button class="btn-blue-sm" id="btn-add-work-type">+ Add Type</button>
-    </div>
-    <div class="card">
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>NAME</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
-          <tbody id="work-types-mgmt-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="page-admin-submissions" class="page">
-    <button class="btn-back btn-back-to-admin">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-      Back to Admin
-    </button>
-    <div class="page-title">Pending Submissions</div>
-    <div class="card">
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>USER</th><th>WEEK</th><th>SUBMITTED AT</th><th>ACTIONS</th></tr></thead>
-          <tbody id="submissions-mgmt-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="page-admin-reports" class="page">
-    <button class="btn-back btn-back-to-admin">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-      Back to Admin
-    </button>
-    <div class="page-title">Global Reports</div>
-    <div class="filters-bar">
-        <input type="date" id="report-start" class="filter-select">
-        <input type="date" id="report-end" class="filter-select">
-        <button class="btn-blue-sm" id="btn-run-report">Run Report</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
-        <div class="card">
-            <div style="padding:1rem;font-weight:700;border-bottom:1px solid var(--border)">Hours by Project</div>
-            <div class="table-wrap">
-                <table><thead><tr><th>PROJECT</th><th>HOURS</th></tr></thead><tbody id="report-projects-tbody"></tbody></table>
-            </div>
-        </div>
-        <div class="card">
-            <div style="padding:1rem;font-weight:700;border-bottom:1px solid var(--border)">Hours by User</div>
-            <div class="table-wrap">
-                <table><thead><tr><th>USER</th><th>HOURS</th></tr></thead><tbody id="report-users-tbody"></tbody></table>
-            </div>
-        </div>
-    </div>
-  </div>
-
-  <div id="page-profile" class="page">
-    <button class="btn-back" id="btn-back-from-profile">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-      Back to Timesheets
-    </button>
-    <div class="page-title">My Profile</div>
-    <div class="card" style="max-width:500px">
-        <div class="modal-body">
-            <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:1.5rem">
-                <div class="user-avatar" id="profile-avatar-preview" style="width:80px;height:80px;font-size:1.75rem;margin-bottom:1rem;background-size:cover;background-position:center"></div>
-                <input type="file" id="prof-avatar-file" style="display:none" accept="image/*">
-                <button class="btn-ghost" id="btn-change-avatar" style="font-size:0.8rem">Change Photo</button>
-            </div>
-            <div class="form-group">
-                <label>Full Name</label>
-                <input type="text" id="prof-name" class="form-control">
-            </div>
-            <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" id="prof-email" class="form-control">
-            </div>
-            <button class="btn-primary" id="btn-save-profile">Update Profile</button>
-        </div>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="project-modal">
-  <div class="modal-box animate__animated animate__zoomIn animate__faster">
-    <div class="modal-header"><span class="modal-title" id="pmodal-title">Add Project</span><button class="modal-close pmodal-close">&times;</button></div>
-    <div class="modal-body">
-      <input type="hidden" id="pmodal-id">
-      <div class="form-group"><label>Project Name</label><input type="text" id="pmodal-name" class="form-control"></div>
-      <div class="check-wrap"><input type="checkbox" id="pmodal-active" checked><label for="pmodal-active">Is Active</label></div>
-    </div>
-    <div class="modal-footer"><button class="btn-outline pmodal-close">Cancel</button><button class="btn-primary" id="btn-pmodal-save">Save Project</button></div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="work-type-modal">
-  <div class="modal-box animate__animated animate__zoomIn animate__faster">
-    <div class="modal-header"><span class="modal-title" id="wtmodal-title">Add Work Type</span><button class="modal-close wtmodal-close">&times;</button></div>
-    <div class="modal-body">
-      <input type="hidden" id="wtmodal-id">
-      <div class="form-group"><label>Type Name</label><input type="text" id="wtmodal-name" class="form-control"></div>
-      <div class="check-wrap"><input type="checkbox" id="wtmodal-active" checked><label for="wtmodal-active">Is Active</label></div>
-    </div>
-    <div class="modal-footer"><button class="btn-outline wtmodal-close">Cancel</button><button class="btn-primary" id="btn-wtmodal-save">Save Type</button></div>
-  </div>
-</div>
-
-<div class="cp-modal-overlay" id="forgot-modal">
-  <div class="cp-modal-box animate__animated animate__zoomIn animate__faster">
-    <div class="modal-header"><span class="modal-title">Forgot Password</span><button class="modal-close fmodal-close">&times;</button></div>
-    <div class="modal-body">
-        <p style="font-size:.875rem;color:var(--text-secondary);margin-bottom:1rem">Enter your email and we will generate a reset token.</p>
-        <div class="form-group"><label>Email Address</label><input type="email" id="f-email" class="form-control" placeholder="name@example.com"></div>
-    </div>
-    <div class="modal-footer"><button class="btn-outline fmodal-close">Cancel</button><button class="btn-primary" id="btn-f-submit">Get Token</button></div>
-  </div>
-</div>
-
-<div class="cp-modal-overlay" id="reset-modal">
-  <div class="cp-modal-box animate__animated animate__zoomIn animate__faster">
-    <div class="modal-header"><span class="modal-title">Reset Password</span><button class="modal-close rmodal-close">&times;</button></div>
-    <div class="modal-body">
-        <div class="form-group"><label>Reset Token</label><input type="text" id="r-token" class="form-control"></div>
-        <div class="form-group"><label>New Password</label><input type="password" id="r-pass" class="form-control"></div>
-    </div>
-    <div class="modal-footer"><button class="btn-outline rmodal-close">Cancel</button><button class="btn-primary" id="btn-r-submit">Reset Password</button></div>
   </div>
 </div>
 
@@ -1562,9 +1083,6 @@ var STATE = {
   captchaToken: '',
   editingEntryId: null,
   activeOpenMenu: null,
-  adminSubmissions: [],
-  reportProjects: [],
-  reportUsers: [],
 };
 
 function el(id){ return document.getElementById(id); }
@@ -1578,40 +1096,6 @@ function showErr(id, msg){
 
 function clearErrors(){
   document.querySelectorAll('.field-error').forEach(function(e){ e.textContent=''; e.classList.remove('visible'); });
-}
-
-function saveTableState(){
-  localStorage.setItem('tt_tbl_state', JSON.stringify({
-    currentPage: STATE.currentPage, perPage: STATE.perPage,
-    sortCol: STATE.sortCol, sortDir: STATE.sortDir,
-    statusFilter: STATE.statusFilter, dateStart: STATE.dateStart, dateEnd: STATE.dateEnd
-  }));
-}
-
-function loadTableState(){
-  try{
-    var s = JSON.parse(localStorage.getItem('tt_tbl_state'));
-    if(s){
-      STATE.currentPage = s.currentPage || 1;
-      STATE.perPage = s.perPage || 5;
-      STATE.sortCol = s.sortCol || 'week_num';
-      STATE.sortDir = s.sortDir || 'asc';
-      STATE.statusFilter = s.statusFilter || '';
-      STATE.dateStart = s.dateStart || '';
-      STATE.dateEnd = s.dateEnd || '';
-      if(el('status-filter')) el('status-filter').value = STATE.statusFilter;
-      if(el('per-page-select')) el('per-page-select').value = STATE.perPage;
-      if(STATE.dateStart && STATE.dateEnd && typeof fp !== 'undefined'){
-        fp.setDate([STATE.dateStart, STATE.dateEnd], false);
-        var d1 = new Date(STATE.dateStart+'T00:00:00'), d2 = new Date(STATE.dateEnd+'T00:00:00');
-        el('date-range-label').textContent = d1.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) + ' – ' + d2.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
-      }
-      document.querySelectorAll('thead th.sortable').forEach(function(t){
-        t.classList.remove('sorted');
-        if(t.dataset.col === STATE.sortCol) t.classList.add('sorted');
-      });
-    }
-  }catch(e){}
 }
 
 function apiCall(endpoint, method, body){
@@ -1637,7 +1121,6 @@ function showMain(){
   el('app-login').classList.remove('active');
   el('app-main').classList.add('active');
   showPage('page-timesheets');
-  loadTableState();
   loadTimesheets();
   prefetchProjectsAndTypes();
 }
@@ -1660,19 +1143,11 @@ function getInitials(name){
 function setUserUI(user){
   STATE.user = user;
   el('topbar-username').textContent = user.name;
-  var av = el('user-avatar-initials');
-  if(user.avatar_url){
-    av.textContent = '';
-    av.style.backgroundImage = 'url('+user.avatar_url+')';
-    av.style.backgroundSize = 'cover';
-  } else {
-    av.textContent = getInitials(user.name);
-    av.style.backgroundImage = 'none';
-  }
+  el('user-avatar-initials').textContent = getInitials(user.name);
   if(user.role === 'admin'){
-    document.querySelectorAll('[id^="btn-admin-"]').forEach(function(b){ b.style.display = 'flex'; });
+    el('btn-admin-dashboard').style.display = 'flex';
   } else {
-    document.querySelectorAll('[id^="btn-admin-"]').forEach(function(b){ b.style.display = 'none'; });
+    el('btn-admin-dashboard').style.display = 'none';
   }
 }
 
@@ -1792,106 +1267,10 @@ el('btn-back-to-list').addEventListener('click', function(){
   showPage('page-timesheets');
 });
 
-el('btn-show-profile').addEventListener('click', function(){
-  el('user-dropdown').classList.remove('open');
-  el('prof-name').value = STATE.user.name;
-  el('prof-email').value = STATE.user.email;
-  var av = el('profile-avatar-preview');
-  if(STATE.user.avatar_url){
-    av.textContent = '';
-    av.style.backgroundImage = 'url('+STATE.user.avatar_url+')';
-  } else {
-    av.textContent = getInitials(STATE.user.name);
-    av.style.backgroundImage = 'none';
-  }
-  showPage('page-profile');
-});
-
-el('btn-change-avatar').addEventListener('click', function(){ el('prof-avatar-file').click(); });
-el('prof-avatar-file').addEventListener('change', function(){
-    if(!this.files.length) return;
-    var fd = new FormData();
-    fd.append('avatar', this.files[0]);
-    fetch('?api=upload_avatar', { method:'POST', headers:{'X-CSRF-TOKEN':STATE.csrf}, body:fd }).then(function(r){ return r.json(); }).then(function(d){
-        if(d.success){
-            STATE.user.avatar_url = d.avatar_url;
-            setUserUI(STATE.user);
-            var av = el('profile-avatar-preview');
-            av.textContent = ''; av.style.backgroundImage = 'url('+d.avatar_url+')';
-            Swal.fire({icon:'success', title:'Photo Updated'});
-        } else { Swal.fire({icon:'error', title:'Error', text:d.error}); }
-    });
-});
-
-el('btn-save-profile').addEventListener('click', function(){
-  var name = el('prof-name').value.trim();
-  var email = el('prof-email').value.trim();
-  if(!name || !email) return;
-  apiCall('update_profile','POST',{name:name, email:email}).then(function(d){
-    if(d.success){
-        STATE.user.name = name; STATE.user.email = email;
-        setUserUI(STATE.user);
-        Swal.fire({icon:'success', title:'Updated', text:d.message});
-    } else { Swal.fire({icon:'error', title:'Error', text:d.error}); }
-  });
-});
-
-el('btn-back-from-profile').addEventListener('click', function(){ showPage('page-timesheets'); });
-
-el('btn-show-forgot').addEventListener('click', function(){ openModal('forgot-modal'); });
-el('btn-f-submit').addEventListener('click', function(){
-  var email = el('f-email').value.trim();
-  if(!email) return;
-  apiCall('forgot_password','POST',{email:email}).then(function(d){
-    closeModal('forgot-modal');
-    Swal.fire({title:'Token Generated', text:d.message}).then(function(){ openModal('reset-modal'); });
-  });
-});
-
-el('btn-r-submit').addEventListener('click', function(){
-    var token = el('r-token').value.trim();
-    var pass = el('r-pass').value;
-    if(!token || !pass) return;
-    apiCall('reset_password','POST',{token:token, password:pass}).then(function(d){
-        if(d.success){ closeModal('reset-modal'); Swal.fire({icon:'success', title:'Success', text:d.message}); }
-        else { Swal.fire({icon:'error', title:'Error', text:d.error}); }
-    });
-});
-
-document.querySelectorAll('.fmodal-close').forEach(function(b){ b.addEventListener('click', function(){ closeModal('forgot-modal'); }); });
-document.querySelectorAll('.rmodal-close').forEach(function(b){ b.addEventListener('click', function(){ closeModal('reset-modal'); }); });
-
-el('btn-admin-users').addEventListener('click', function(){
+el('btn-admin-dashboard').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
   showPage('page-admin');
   loadAdminUsers();
-});
-
-el('btn-admin-projects').addEventListener('click', function(){
-  el('user-dropdown').classList.remove('open');
-  showPage('page-admin-projects');
-  loadAdminProjects();
-});
-
-el('btn-admin-work-types').addEventListener('click', function(){
-  el('user-dropdown').classList.remove('open');
-  showPage('page-admin-work-types');
-  loadAdminWorkTypes();
-});
-
-el('btn-admin-subs').addEventListener('click', function(){
-  el('user-dropdown').classList.remove('open');
-  showPage('page-admin-submissions');
-  loadAdminSubmissions();
-});
-
-el('btn-admin-reports').addEventListener('click', function(){
-  el('user-dropdown').classList.remove('open');
-  showPage('page-admin-reports');
-});
-
-document.querySelectorAll('.btn-back-to-admin').forEach(function(b){
-  b.addEventListener('click', function(){ showPage('page-admin'); });
 });
 
 el('btn-back-from-admin').addEventListener('click', function(){
@@ -1916,9 +1295,8 @@ function renderAdminUsers(users){
     html += '<td>'+escHtml(u.name)+'</td>';
     html += '<td>'+escHtml(u.email)+'</td>';
     html += '<td><select class="admin-role-sel" data-id="'+u.id+'"><option value="user" '+(u.role==='user'?'selected':'')+'>User</option><option value="admin" '+(u.role==='admin'?'selected':'')+'>Admin</option></select></td>';
-    html += '<td><input type="number" class="admin-hours-inp" data-id="'+u.id+'" value="'+u.standard_hours+'" style="width:60px"></td>';
-    html += '<td>'+status+'</td>';
-    html += '<td><button class="action-link approve-toggle" data-id="'+u.id+'" data-approved="'+u.is_approved+'">'+(u.is_approved==1?'Disapprove':'Approve')+'</button> <button class="action-link delete-user danger" data-id="'+u.id+'" style="color:var(--red)">Delete</button></td>';
+    html += '<td><button class="action-link approve-toggle" data-id="'+u.id+'" data-approved="'+u.is_approved+'">'+(u.is_approved==1?'Disapprove':'Approve')+'</button></td>';
+    html += '<td><button class="action-link delete-user danger" data-id="'+u.id+'" style="color:var(--red)">Delete</button></td>';
     html += '</tr>';
   });
   tbody.innerHTML = html;
@@ -1926,12 +1304,6 @@ function renderAdminUsers(users){
   tbody.querySelectorAll('.admin-role-sel').forEach(function(sel){
     sel.addEventListener('change', function(){
       updateUser(this.dataset.id, { role: this.value });
-    });
-  });
-
-  tbody.querySelectorAll('.admin-hours-inp').forEach(function(inp){
-    inp.addEventListener('change', function(){
-      updateUser(this.dataset.id, { standard_hours: this.value });
     });
   });
 
@@ -2067,133 +1439,7 @@ function applyFiltersAndRender(){
   renderPagination();
 }
 
-function loadAdminProjects(){
-  apiCall('projects').then(function(d){ if(d.success) renderAdminProjects(d.projects); });
-}
-function renderAdminProjects(projects){
-  var tbody = el('projects-mgmt-tbody');
-  var html = '';
-  projects.forEach(function(p){
-    html += '<tr><td>'+escHtml(p.name)+'</td><td>'+(p.is_active==1?'Active':'Inactive')+'</td><td><button class="action-link edit-p" data-id="'+p.id+'">Edit</button></td></tr>';
-  });
-  tbody.innerHTML = html;
-  tbody.querySelectorAll('.edit-p').forEach(function(b){ b.addEventListener('click', function(){
-    var p = projects.find(function(x){ return x.id == b.dataset.id; });
-    el('pmodal-id').value = p.id; el('pmodal-name').value = p.name; el('pmodal-active').checked = p.is_active==1;
-    el('pmodal-title').textContent = 'Edit Project'; openModal('project-modal');
-  });});
-}
-el('btn-add-project').addEventListener('click', function(){
-  el('pmodal-id').value = ''; el('pmodal-name').value = ''; el('pmodal-active').checked = true;
-  el('pmodal-title').textContent = 'Add Project'; openModal('project-modal');
-});
-el('btn-pmodal-save').addEventListener('click', function(){
-  var id = el('pmodal-id').value, name = el('pmodal-name').value.trim(), active = el('pmodal-active').checked?1:0;
-  if(!name) return;
-  apiCall('admin_project_save','POST',{id:id, name:name, is_active:active}).then(function(d){
-    if(d.success){ closeModal('project-modal'); loadAdminProjects(); STATE.projects=[]; prefetchProjectsAndTypes(); }
-  });
-});
-document.querySelectorAll('.pmodal-close').forEach(function(b){ b.addEventListener('click', function(){ closeModal('project-modal'); }); });
-
-function loadAdminWorkTypes(){
-  apiCall('work_types').then(function(d){ if(d.success) renderAdminWorkTypes(d.work_types); });
-}
-function renderAdminWorkTypes(types){
-  var tbody = el('work-types-mgmt-tbody');
-  var html = '';
-  types.forEach(function(t){
-    html += '<tr><td>'+escHtml(t.name)+'</td><td>'+(t.is_active==1?'Active':'Inactive')+'</td><td><button class="action-link edit-wt" data-id="'+t.id+'">Edit</button></td></tr>';
-  });
-  tbody.innerHTML = html;
-  tbody.querySelectorAll('.edit-wt').forEach(function(b){ b.addEventListener('click', function(){
-    var t = types.find(function(x){ return x.id == b.dataset.id; });
-    el('wtmodal-id').value = t.id; el('wtmodal-name').value = t.name; el('wtmodal-active').checked = t.is_active==1;
-    el('wtmodal-title').textContent = 'Edit Work Type'; openModal('work-type-modal');
-  });});
-}
-el('btn-add-work-type').addEventListener('click', function(){
-  el('wtmodal-id').value = ''; el('wtmodal-name').value = ''; el('wtmodal-active').checked = true;
-  el('wtmodal-title').textContent = 'Add Work Type'; openModal('work-type-modal');
-});
-el('btn-wtmodal-save').addEventListener('click', function(){
-  var id = el('wtmodal-id').value, name = el('wtmodal-name').value.trim(), active = el('wtmodal-active').checked?1:0;
-  if(!name) return;
-  apiCall('admin_work_type_save','POST',{id:id, name:name, is_active:active}).then(function(d){
-    if(d.success){ closeModal('work-type-modal'); loadAdminWorkTypes(); STATE.workTypes=[]; prefetchProjectsAndTypes(); }
-  });
-});
-document.querySelectorAll('.wtmodal-close').forEach(function(b){ b.addEventListener('click', function(){ closeModal('work-type-modal'); }); });
-
-function loadAdminSubmissions(){
-  apiCall('admin_submissions').then(function(d){ if(d.success) renderAdminSubmissions(d.submissions); });
-}
-function renderAdminSubmissions(subs){
-  var tbody = el('submissions-mgmt-tbody');
-  var html = '';
-  subs.forEach(function(s){
-    html += '<tr><td>'+escHtml(s.user_name)+'</td><td>Week '+s.week+', '+s.year+'</td><td>'+s.submitted_at+'</td><td>';
-    html += '<button class="action-link review-sub" data-id="'+s.id+'" data-status="approved">Approve</button>';
-    html += '<button class="action-link review-sub danger" data-id="'+s.id+'" data-status="rejected" style="color:var(--red)">Reject</button>';
-    html += '</td></tr>';
-  });
-  tbody.innerHTML = html || '<tr><td colspan="4">No pending submissions.</td></tr>';
-  tbody.querySelectorAll('.review-sub').forEach(function(b){ b.addEventListener('click', function(){
-    var id = b.dataset.id, status = b.dataset.status;
-    if(status==='rejected'){
-        Swal.fire({title:'Rejection Reason', input:'text', showCancelButton:true}).then(function(r){
-            if(r.isConfirmed) reviewSub(id, status, r.value);
-        });
-    } else { reviewSub(id, status); }
-  });});
-}
-function reviewSub(id, status, reason){
-    apiCall('admin_submission_review','POST',{id:id, status:status, reason:reason}).then(function(d){
-        if(d.success){ Swal.fire({icon:'success', title:'Success', text:d.message}); loadAdminSubmissions(); }
-    });
-}
-
-el('btn-run-report').addEventListener('click', function(){
-  var s = el('report-start').value, e = el('report-end').value;
-  if(!s || !e) return;
-  apiCall('reports&start='+s+'&end='+e).then(function(d){
-    if(d.success){
-        var ph = '', uh = '';
-        d.projects.forEach(function(p){ ph += '<tr><td>'+escHtml(p.project_name)+'</td><td>'+p.total_hours+'h</td></tr>'; });
-        d.users.forEach(function(u){ uh += '<tr><td>'+escHtml(u.user_name)+'</td><td>'+u.total_hours+'h</td></tr>'; });
-        el('report-projects-tbody').innerHTML = ph || '<tr><td colspan="2">No data</td></tr>';
-        el('report-users-tbody').innerHTML = uh || '<tr><td colspan="2">No data</td></tr>';
-    }
-  });
-});
-
-el('btn-submit-week').addEventListener('click', function(){
-    Swal.fire({title:'Submit for approval?', text:'This will lock your timesheet for this week.', icon:'question', showCancelButton:true}).then(function(r){
-        if(r.isConfirmed){
-            var dt = new Date(STATE.currentWeekStart+'T00:00:00');
-            var year = dt.getFullYear(), week = getWeekNumber(dt);
-            apiCall('submit_week','POST', {year: year, week: week}).then(function(d){
-                if(d.success){ Swal.fire({icon:'success', title:'Submitted', text:d.message}); loadTimesheets(); openWeekDetail(STATE.currentWeekStart, STATE.currentWeekEnd); }
-                else { Swal.fire({icon:'error', title:'Error', text:d.error}); }
-            });
-        }
-    });
-});
-
-el('btn-export-week').addEventListener('click', function(){
-    window.location.href = '?api=export_csv&start='+STATE.currentWeekStart+'&end='+STATE.currentWeekEnd;
-});
-
-function getWeekNumber(d) {
-    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
-    var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-    var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
-    return weekNo;
-}
-
 function renderTimesheetTable(){
-  saveTableState();
   var tbody = el('timesheets-tbody');
   var start = (STATE.currentPage - 1) * STATE.perPage;
   var page = STATE.filteredTimesheets.slice(start, start + STATE.perPage);
@@ -2204,17 +1450,13 @@ function renderTimesheetTable(){
   var html = '';
   page.forEach(function(row){
     var badge = '';
-    if(row.status === 'approved') badge = '<span class="badge badge-completed">APPROVED</span>';
-    else if(row.status === 'pending') badge = '<span class="badge badge-incomplete">PENDING</span>';
-    else if(row.status === 'rejected') badge = '<span class="badge badge-missing">REJECTED</span>';
-    else if(row.status === 'completed') badge = '<span class="badge badge-completed">COMPLETED</span>';
+    if(row.status === 'completed') badge = '<span class="badge badge-completed">COMPLETED</span>';
     else if(row.status === 'incomplete') badge = '<span class="badge badge-incomplete">INCOMPLETE</span>';
     else badge = '<span class="badge badge-missing">MISSING</span>';
     var action = '';
-    var actionText = 'View';
-    if(row.status === 'missing') actionText = 'Create';
-    else if(row.status === 'incomplete' || row.status === 'rejected') actionText = 'Update';
-    action = '<button class="action-link" data-start="'+row.date_start+'" data-end="'+row.date_end+'">'+actionText+'</button>';
+    if(row.status === 'completed') action = '<button class="action-link" data-start="'+row.date_start+'" data-end="'+row.date_end+'">View</button>';
+    else if(row.status === 'incomplete') action = '<button class="action-link" data-start="'+row.date_start+'" data-end="'+row.date_end+'">Update</button>';
+    else action = '<button class="action-link" data-start="'+row.date_start+'" data-end="'+row.date_end+'">Create</button>';
     html += '<tr class="animate__animated animate__fadeIn"><td>'+row.week_num+'</td><td>'+escHtml(row.date_label)+'</td><td>'+badge+'</td><td>'+action+'</td></tr>';
   });
   tbody.innerHTML = html;
@@ -2274,12 +1516,6 @@ function openWeekDetail(start, end){
   STATE.currentWeekEnd = end;
   var s = new Date(start+'T00:00:00'), e = new Date(end+'T00:00:00');
   el('detail-range-label').textContent = s.toLocaleDateString('en-US',{day:'numeric',month:'short'}) + ' - ' + e.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'});
-  
-  var wInfo = STATE.timesheets.find(function(w){ return w.date_start === start; });
-  var isLocked = wInfo && (wInfo.status === 'pending' || wInfo.status === 'approved');
-  el('btn-submit-week').disabled = isLocked;
-  el('btn-submit-week').textContent = isLocked ? (wInfo.status === 'approved' ? 'Approved' : 'Pending Review') : 'Submit for Approval';
-
   showPage('page-detail');
   loadWeekEntries();
 }
@@ -2292,25 +1528,17 @@ function loadWeekEntries(){
   .then(function(r){ return r.json(); }).then(function(d){
     if(d.success){
       STATE.weekEntries = d.entries;
-      var wInfo = STATE.timesheets.find(function(w){ return w.date_start === STATE.currentWeekStart; });
-      renderWeekDetail(d.total_hours, wInfo ? wInfo.std_hours : 40, wInfo ? wInfo.status : '', wInfo ? wInfo.rejection_reason : '');
+      renderWeekDetail(d.total_hours);
     }
   }).catch(function(){});
 }
 
-function renderWeekDetail(totalHours, stdHours, status, reason){
-  var pct = Math.min((totalHours/stdHours)*100, 100);
-  el('progress-label').textContent = totalHours.toFixed(1) + '/' + stdHours + ' hrs';
+function renderWeekDetail(totalHours){
+  var pct = Math.min((totalHours/40)*100, 100);
+  el('progress-label').textContent = totalHours.toFixed(1) + '/40 hrs';
   var bar = el('progress-bar');
   bar.style.width = pct + '%';
-  if(totalHours >= stdHours) bar.classList.add('complete'); else bar.classList.remove('complete');
-
-  var isLocked = (status === 'pending' || status === 'approved');
-
-  var html = '';
-  if(status === 'rejected'){
-      html += '<div style="padding:1rem;background:var(--pink-bg);color:var(--pink);border-radius:var(--radius);font-size:0.875rem;margin-bottom:1rem;border:1px solid var(--pink)"><strong>Rejected:</strong> '+escHtml(reason)+'</div>';
-  }
+  if(totalHours >= 40) bar.classList.add('complete'); else bar.classList.remove('complete');
 
   var grouped = {};
   var order = [];
@@ -2338,20 +1566,15 @@ function renderWeekDetail(totalHours, stdHours, status, reason){
         html += '<div class="entry-desc">'+escHtml(en.description)+'</div>';
         html += '<div class="entry-hours">'+parseFloat(en.hours)+'h</div>';
         html += '<span class="project-chip">'+escHtml(en.project_name)+'</span>';
-        if(!isLocked){
-            html += '<div class="entry-menu-wrap">';
-            html += '<button class="entry-menu-btn" data-id="'+en.id+'">⋯</button>';
-            html += '<div class="entry-menu-dropdown" id="menu-'+en.id+'">';
-            html += '<div class="entry-menu-item edit-entry" data-id="'+en.id+'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</div>';
-            html += '<div class="entry-menu-item del delete-entry" data-id="'+en.id+'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>Delete</div>';
-            html += '</div></div>';
-        }
-        html += '</div>';
+        html += '<div class="entry-menu-wrap">';
+        html += '<button class="entry-menu-btn" data-id="'+en.id+'">⋯</button>';
+        html += '<div class="entry-menu-dropdown" id="menu-'+en.id+'">';
+        html += '<div class="entry-menu-item edit-entry" data-id="'+en.id+'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</div>';
+        html += '<div class="entry-menu-item del delete-entry" data-id="'+en.id+'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>Delete</div>';
+        html += '</div></div></div>';
       });
     }
-    if(!isLocked){
-        html += '<div class="add-task-row"><button class="btn-add-task" data-date="'+dateStr+'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add new task</button></div>';
-    }
+    html += '<div class="add-task-row"><button class="btn-add-task" data-date="'+dateStr+'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add new task</button></div>';
     html += '</div>';
   });
 

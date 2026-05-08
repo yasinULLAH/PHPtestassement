@@ -1,6 +1,6 @@
 # 🕰️ ticktock — Advanced Timesheet Management Suite
 
-> A premium, high-performance timesheet management solution developed for the **TenTwenty Frontend Technical Assessment 2025**. This suite features two distinct architectural implementations: a **Server-Side PHP/MySQL** version and a **Client-Side PWA/IndexedDB** version.
+> A premium, high-performance timesheet management solution developed for the **TenTwenty Frontend Technical Assessment 2026**. This suite features two distinct architectural implementations: a **Server-Side PHP/MySQL** version and a **Client-Side PWA/IndexedDB** version.
 
 ---
 
@@ -30,10 +30,14 @@ This project demonstrates versatility by providing two complete solutions for di
 **Target:** Teams requiring centralized data management and administrative oversight.
 - **Tech Stack:** Native PHP 8.0+, MySQL, Vanilla CSS.
 - **Key Features:**
-  - **Admin Dashboard:** Full user management (Approve/Disapprove, Role switching, User CRUD).
-  - **Secure Registration:** Account approval workflow ensures only authorized personnel gain access.
-  - **Centralized Database:** SQL-based storage for team-wide reporting.
-  - **Security:** CSRF protection, session timeouts, and math-based CAPTCHA.
+  - **Admin Control Panel:** Manage Users, Projects, and Work Types from a central UI.
+  - **Submission Workflow:** Multi-stage timesheet lifecycle (Draft -> Pending -> Approved/Rejected).
+  - **Profile & Account Management:** User profile updates, avatar customization, and secure password changes.
+  - **Global Analytics:** Detailed reporting on hours by project and user.
+  - **Enhanced Security:** IP-based rate limiting, CSRF protection, math CAPTCHA, and session absolute timeouts.
+  - **Password Recovery:** Token-based password reset system with simulated email logging.
+  - **Data Export:** Built-in CSV export for payroll and external reporting.
+  - **Personalized Setup:** Configurable standard work hours per user.
 
 ---
 
@@ -42,7 +46,7 @@ This project demonstrates versatility by providing two complete solutions for di
 - **📈 Timesheet Management:** Weekly dashboard with status tracking (Completed / Incomplete / Missing).
 - **📅 Smart Filtering:** Date range filtering with automatic week-span expansion.
 - **📝 Daily Logging:** Surgical entry management; group tasks by day with project and work-type tagging.
-- **📊 Interactive Progress:** Real-time visual feedback on 40-hour weekly targets.
+- **📊 Interactive Progress:** Real-time visual feedback on weekly targets (e.g., 40-hour goal).
 - **🔒 Security First:** Password strength enforcement and secure session handling.
 - **📱 Ultra-Responsive:** Pixel-perfect implementation of Figma designs across all device sizes.
 
@@ -66,7 +70,7 @@ Unlike typical framework-heavy builds, this project utilizes **Native PHP and Va
 - **`database.sql`**: Complete schema for the MySQL environment.
 
 ### Quick Start (Server-Side)
-1. Import `database.sql` into your MySQL server.
+1. Import `ticktock_db-db_2026-05-08.sql` (Recommended) or `database.sql` into your MySQL server.
 2. Update DB credentials in `index.php`.
 3. Run on any PHP-enabled server.
 
@@ -81,4 +85,5 @@ Bannu Software Solutions
 
 ---
 
-*© 2024 tentwenty. All rights reserved.*
+*© 2026 tentwenty. All rights reserved.*
+

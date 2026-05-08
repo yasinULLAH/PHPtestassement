@@ -1,6 +1,6 @@
 # ticktock — Enterprise Timesheet Suite (PHP)
 
-> A centralized, SaaS-style timesheet management dashboard built for the **TenTwenty Frontend Technical Assessment 2025**.
+> A centralized, SaaS-style timesheet management dashboard built for the **TenTwenty Frontend Technical Assessment 2026**.
 
 ---
 
@@ -20,7 +20,7 @@ For your convenience, I have provided pre-seeded accounts in the database. Use t
 ### 🛡️ Admin Account
 - **Email:** `yasin@tentwenty.me`
 - **Password:** `admin@123`
-*(Allows full access to User Management, Approvals, and CRUD operations)*
+*(Allows full access to User Management, Approvals, Project CRUD, and Reporting)*
 
 ### 👤 Standard User Account
 - **Email:** `sarah.connor@tentwenty.me`
@@ -30,12 +30,16 @@ For your convenience, I have provided pre-seeded accounts in the database. Use t
 
 ## ✨ Key Enterprise Features
 
-- 🛡️ **Centralized Admin Dashboard** — Manage the entire team from one place.
-- ✅ **Approval Workflow** — New registrations must be approved by an admin before they can log in.
-- 🔐 **Enhanced Security** — Math-based CAPTCHA, CSRF protection, and secure session management (40-min idle / 8-hr absolute timeout).
-- 📋 **Weekly Dashboard** — Visual status tracking (Completed / Incomplete / Missing) based on 40-hour targets.
-- 📅 **Advanced Filtering** — Multi-week date range support that automatically calculates and displays all covered weeks.
-- 📱 **Native Performance** — Zero framework overhead; built with raw PHP and CSS for instantaneous execution.
+- 🛡️ **Centralized Admin Dashboard** — Manage users, projects, and work types from one place with full CRUD capabilities.
+- ✅ **Approval Workflow** — Submissions and registrations require admin approval to maintain data quality.
+- 🔐 **Enhanced Security** — Math CAPTCHA, CSRF, IP-based Rate Limiting, and secure session management with absolute timeouts.
+- 📋 **Submission Lifecycle** — Users submit weekly timesheets which lock them for review, preventing post-submission modifications.
+- 📊 **Global Reports** — Admins can view aggregate hours by project and user across configurable date ranges.
+- 👤 **Profile Management** — Users can update their personal information, manage avatars, and securely change passwords.
+- 📧 **Password Recovery** — Token-based reset system with simulated email delivery (logged to `email.txt`).
+- 🔄 **Data Integrity** — Soft-delete logic for users to preserve historical data while removing active access.
+- 📥 **Data Export** — Export timesheets to CSV for external reporting or payroll processing.
+- 📱 **Native Performance** — Zero framework overhead; built with raw PHP and CSS for maximum durability.
 
 ---
 
@@ -76,4 +80,5 @@ Bannu Software Solutions
 
 ---
 
-*© 2024 tentwenty. All rights reserved.*
+*© 2026 tentwenty. All rights reserved.*
+

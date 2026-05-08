@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: May 08, 2026 at 08:28 AM
+-- Generation Time: May 08, 2026 at 09:58 AM
 -- Server version: 8.2.0
 -- PHP Version: 8.3.0
 
@@ -39,8 +39,22 @@ CREATE TABLE `captcha_store` (
 --
 
 INSERT INTO `captcha_store` (`id`, `token`, `answer`, `expires_at`) VALUES
-(28, '48f03a77a160be82501d92305c476c46', '6', '2026-05-08 12:24:31'),
-(31, '2f2c43ce04359863a076c5956ecfb3ff', '13', '2026-05-08 12:28:05');
+(45, '8749637b394b3fac5b08f980609eb175', '2', '2026-05-08 14:03:59'),
+(47, 'a3c47b35aad2ddef68d0347a6420b56a', '3', '2026-05-08 14:06:06'),
+(48, 'ba0dfba7e122319a32bc48c0842c8be3', '12', '2026-05-08 14:06:23'),
+(49, '0aa7a2835baa71cc6b93664ad91c576b', '12', '2026-05-08 14:08:10');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `login_attempts`
+--
+
+CREATE TABLE `login_attempts` (
+  `id` int UNSIGNED NOT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `attempt_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -77,6 +91,7 @@ CREATE TABLE `timesheet_entries` (
   `date` date NOT NULL,
   `project_id` int UNSIGNED NOT NULL,
   `work_type_id` int UNSIGNED NOT NULL,
+  `submission_id` int UNSIGNED DEFAULT NULL,
   `description` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `hours` decimal(4,2) NOT NULL DEFAULT '0.00',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -87,40 +102,58 @@ CREATE TABLE `timesheet_entries` (
 -- Dumping data for table `timesheet_entries`
 --
 
-INSERT INTO `timesheet_entries` (`id`, `user_id`, `date`, `project_id`, `work_type_id`, `description`, `hours`, `created_at`, `updated_at`) VALUES
-(1, 1, '2024-01-01', 1, 1, 'Implemented hero section with responsive animations and CTA buttons for the homepage redesign project.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(2, 1, '2024-01-02', 1, 4, 'Designed and coded the navigation bar with mobile hamburger menu, dropdown submenus, and sticky scroll behavior.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(3, 1, '2024-01-03', 2, 2, 'Fixed critical layout bug on iOS Safari where flex containers were overflowing on product listing pages.', 6.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(4, 1, '2024-01-03', 2, 5, 'Ran regression tests on the mobile app checkout flow and documented 3 reproducible edge-case bugs.', 2.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(5, 1, '2024-01-04', 3, 1, 'Built the OAuth2 token refresh middleware and integrated it with the existing Axios interceptor setup.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(6, 1, '2024-01-05', 1, 3, 'Conducted peer code reviews for the homepage feature branch, left inline comments and approved 4 PRs.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(7, 1, '2024-01-08', 4, 1, 'Developed the client dashboard overview page with dynamic KPI widgets pulling from the reporting API.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(8, 1, '2024-01-09', 4, 4, 'Implemented responsive table component with sorting, filtering, and column visibility toggle for client reports.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(9, 1, '2024-01-10', 2, 1, 'Added push notification support to the mobile app using Firebase Cloud Messaging with background handlers.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(10, 1, '2024-01-11', 3, 2, 'Debugged and resolved a race condition in the WebSocket connection manager causing intermittent disconnects.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(11, 1, '2024-01-12', 1, 7, 'Deployed homepage v2.3 to staging, configured Nginx rewrites, and ran Lighthouse audits targeting 90+ scores.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(12, 1, '2024-01-15', 4, 4, 'Redesigned the client onboarding flow with multi-step wizard, progress indicators, and form validation.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(13, 1, '2024-01-16', 3, 1, 'Built GraphQL resolvers for the user profile endpoints and integrated with the PostgreSQL data layer.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(14, 1, '2024-01-17', 2, 5, 'Executed full regression testing suite on mobile app v3.1 build across 12 device/OS combinations.', 4.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(15, 1, '2024-01-17', 1, 8, 'Attended weekly client sync to review sprint progress, discuss upcoming features, and clarify requirements.', 4.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(16, 1, '2024-01-18', 4, 2, 'Fixed permission bug allowing standard users to access admin analytics routes in the client portal.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(17, 1, '2024-01-19', 3, 6, 'Wrote comprehensive API documentation for all v2 endpoints including request/response schemas and examples.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(18, 1, '2024-01-22', 1, 1, 'Built the blog listing and detail pages with dynamic content loading, pagination, and SEO meta tags.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(19, 1, '2024-01-23', 2, 4, 'Redesigned the onboarding screens for the mobile app following new brand guidelines and accessibility standards.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(20, 1, '2024-01-24', 4, 1, 'Developed the invoice generation module with PDF export capability and email delivery integration.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(21, 1, '2024-01-25', 3, 3, 'Reviewed the new microservice architecture PRs and provided feedback on service boundaries and API contracts.', 4.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(22, 1, '2024-01-26', 1, 7, 'Configured CI/CD pipeline with GitHub Actions for automated testing, building, and deployment to AWS S3.', 4.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(23, 1, '2024-01-29', 2, 2, 'Investigated and fixed memory leak in the React Native FlatList component causing app crashes on Android.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(24, 1, '2024-01-30', 4, 1, 'Implemented real-time notification system for client portal using Server-Sent Events and Redis pub/sub.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(25, 1, '2024-01-31', 1, 5, 'Performed cross-browser compatibility testing on homepage across Chrome, Firefox, Safari, and Edge browsers.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(26, 1, '2024-02-01', 3, 1, 'Built the file upload service with S3 integration, virus scanning, and progress tracking via WebSockets.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(27, 1, '2024-02-01', 2, 8, 'Joined the mobile app pre-launch client meeting to walk through UAT feedback and finalize release checklist.', 2.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(28, 2, '2024-01-01', 2, 1, 'Set up the React Native project scaffolding with navigation library, state management, and folder structure.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(29, 2, '2024-01-02', 2, 4, 'Designed custom UI components: buttons, cards, modals, and input fields matching the new design system.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(30, 2, '2024-01-03', 1, 2, 'Patched broken image lazy loading on the homepage that was causing CLS score degradation in Lighthouse.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(31, 2, '2024-01-04', 2, 1, 'Implemented user authentication flow in mobile app with biometric login and secure token storage.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(32, 2, '2024-01-05', 3, 5, 'Tested all API v2 integration points against staging environment and filed bug reports for 5 endpoints.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
-(33, 1, '2025-12-29', 3, 2, 'this is new', 1.00, '2026-05-08 07:01:02', '2026-05-08 07:01:02');
+INSERT INTO `timesheet_entries` (`id`, `user_id`, `date`, `project_id`, `work_type_id`, `submission_id`, `description`, `hours`, `created_at`, `updated_at`) VALUES
+(1, 1, '2024-01-01', 1, 1, NULL, 'Implemented hero section with responsive animations and CTA buttons for the homepage redesign project.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(2, 1, '2024-01-02', 1, 4, NULL, 'Designed and coded the navigation bar with mobile hamburger menu, dropdown submenus, and sticky scroll behavior.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(3, 1, '2024-01-03', 2, 2, NULL, 'Fixed critical layout bug on iOS Safari where flex containers were overflowing on product listing pages.', 6.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(4, 1, '2024-01-03', 2, 5, NULL, 'Ran regression tests on the mobile app checkout flow and documented 3 reproducible edge-case bugs.', 2.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(5, 1, '2024-01-04', 3, 1, NULL, 'Built the OAuth2 token refresh middleware and integrated it with the existing Axios interceptor setup.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(6, 1, '2024-01-05', 1, 3, NULL, 'Conducted peer code reviews for the homepage feature branch, left inline comments and approved 4 PRs.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(7, 1, '2024-01-08', 4, 1, NULL, 'Developed the client dashboard overview page with dynamic KPI widgets pulling from the reporting API.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(8, 1, '2024-01-09', 4, 4, NULL, 'Implemented responsive table component with sorting, filtering, and column visibility toggle for client reports.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(9, 1, '2024-01-10', 2, 1, NULL, 'Added push notification support to the mobile app using Firebase Cloud Messaging with background handlers.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(10, 1, '2024-01-11', 3, 2, NULL, 'Debugged and resolved a race condition in the WebSocket connection manager causing intermittent disconnects.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(11, 1, '2024-01-12', 1, 7, NULL, 'Deployed homepage v2.3 to staging, configured Nginx rewrites, and ran Lighthouse audits targeting 90+ scores.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(12, 1, '2024-01-15', 4, 4, NULL, 'Redesigned the client onboarding flow with multi-step wizard, progress indicators, and form validation.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(13, 1, '2024-01-16', 3, 1, NULL, 'Built GraphQL resolvers for the user profile endpoints and integrated with the PostgreSQL data layer.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(14, 1, '2024-01-17', 2, 5, NULL, 'Executed full regression testing suite on mobile app v3.1 build across 12 device/OS combinations.', 4.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(15, 1, '2024-01-17', 1, 8, NULL, 'Attended weekly client sync to review sprint progress, discuss upcoming features, and clarify requirements.', 4.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(16, 1, '2024-01-18', 4, 2, NULL, 'Fixed permission bug allowing standard users to access admin analytics routes in the client portal.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(17, 1, '2024-01-19', 3, 6, NULL, 'Wrote comprehensive API documentation for all v2 endpoints including request/response schemas and examples.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(18, 1, '2024-01-22', 1, 1, NULL, 'Built the blog listing and detail pages with dynamic content loading, pagination, and SEO meta tags.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(19, 1, '2024-01-23', 2, 4, NULL, 'Redesigned the onboarding screens for the mobile app following new brand guidelines and accessibility standards.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(20, 1, '2024-01-24', 4, 1, NULL, 'Developed the invoice generation module with PDF export capability and email delivery integration.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(21, 1, '2024-01-25', 3, 3, NULL, 'Reviewed the new microservice architecture PRs and provided feedback on service boundaries and API contracts.', 4.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(22, 1, '2024-01-26', 1, 7, NULL, 'Configured CI/CD pipeline with GitHub Actions for automated testing, building, and deployment to AWS S3.', 4.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(23, 1, '2024-01-29', 2, 2, NULL, 'Investigated and fixed memory leak in the React Native FlatList component causing app crashes on Android.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(24, 1, '2024-01-30', 4, 1, NULL, 'Implemented real-time notification system for client portal using Server-Sent Events and Redis pub/sub.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(25, 1, '2024-01-31', 1, 5, NULL, 'Performed cross-browser compatibility testing on homepage across Chrome, Firefox, Safari, and Edge browsers.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(26, 1, '2024-02-01', 3, 1, NULL, 'Built the file upload service with S3 integration, virus scanning, and progress tracking via WebSockets.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(27, 1, '2024-02-01', 2, 8, NULL, 'Joined the mobile app pre-launch client meeting to walk through UAT feedback and finalize release checklist.', 2.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(28, 2, '2024-01-01', 2, 1, NULL, 'Set up the React Native project scaffolding with navigation library, state management, and folder structure.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(29, 2, '2024-01-02', 2, 4, NULL, 'Designed custom UI components: buttons, cards, modals, and input fields matching the new design system.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(30, 2, '2024-01-03', 1, 2, NULL, 'Patched broken image lazy loading on the homepage that was causing CLS score degradation in Lighthouse.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(31, 2, '2024-01-04', 2, 1, NULL, 'Implemented user authentication flow in mobile app with biometric login and secure token storage.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(32, 2, '2024-01-05', 3, 5, NULL, 'Tested all API v2 integration points against staging environment and filed bug reports for 5 endpoints.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
+(33, 1, '2025-12-29', 3, 2, NULL, 'this is new', 1.00, '2026-05-08 07:01:02', '2026-05-08 07:01:02');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `timesheet_submissions`
+--
+
+CREATE TABLE `timesheet_submissions` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int UNSIGNED NOT NULL,
+  `year` int NOT NULL,
+  `week` int NOT NULL,
+  `status` enum('pending','approved','rejected') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `rejection_reason` text COLLATE utf8mb4_unicode_ci,
+  `submitted_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `reviewed_at` timestamp NULL DEFAULT NULL,
+  `reviewed_by` int UNSIGNED DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -133,9 +166,14 @@ CREATE TABLE `users` (
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `avatar_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reset_token` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reset_expires` datetime DEFAULT NULL,
   `role` enum('admin','user') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'user',
+  `standard_hours` decimal(4,2) DEFAULT '40.00',
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `is_approved` tinyint(1) NOT NULL DEFAULT '0',
+  `is_deleted` tinyint(1) DEFAULT '0',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -144,12 +182,12 @@ CREATE TABLE `users` (
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`id`, `email`, `password_hash`, `name`, `role`, `is_active`, `is_approved`, `created_at`, `updated_at`) VALUES
-(1, 'yasin@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'yasin ullah', 'admin', 1, 1, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
-(2, 'sarah.connor@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Sarah Connor', 'user', 1, 1, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
-(3, 'michael.chen@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Michael Chen', 'user', 1, 1, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
-(4, 'priya.sharma@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Priya Sharma', 'user', 1, 1, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
-(5, 'khan@khan.com', '$2y$12$qe10faFNr3y.ZcaG4olR/.ezpb3GSB4s1yL61rgXtAdKmT9FQAgA.', 'Khan', 'user', 1, 1, '2026-05-08 07:05:19', '2026-05-08 07:14:49');
+INSERT INTO `users` (`id`, `email`, `password_hash`, `name`, `avatar_url`, `reset_token`, `reset_expires`, `role`, `standard_hours`, `is_active`, `is_approved`, `is_deleted`, `created_at`, `updated_at`) VALUES
+(1, 'yasin@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'yasin ullah', NULL, NULL, NULL, 'admin', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
+(2, 'sarah.connor@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Sarah Connor', NULL, NULL, NULL, 'user', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
+(3, 'michael.chen@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Michael Chen', NULL, NULL, NULL, 'user', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
+(4, 'priya.sharma@tentwenty.me', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Priya Sharma', NULL, NULL, NULL, 'user', 40.00, 1, 1, 0, '2026-05-08 06:37:32', '2026-05-08 06:50:47'),
+(5, 'khan@khan.com', '$2y$10$mcyBs0epqdvSv8a4IBpnWOyUZvAZ9daWC9fd.WaC0K76h1.JBZTq.', 'Khan', NULL, NULL, NULL, 'user', 40.00, 1, 1, 0, '2026-05-08 07:05:19', '2026-05-08 07:29:57');
 
 -- --------------------------------------------------------
 
@@ -192,6 +230,13 @@ ALTER TABLE `captcha_store`
   ADD KEY `idx_expires` (`expires_at`);
 
 --
+-- Indexes for table `login_attempts`
+--
+ALTER TABLE `login_attempts`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_ip_time` (`ip_address`,`attempt_time`);
+
+--
 -- Indexes for table `projects`
 --
 ALTER TABLE `projects`
@@ -204,7 +249,16 @@ ALTER TABLE `timesheet_entries`
   ADD PRIMARY KEY (`id`),
   ADD KEY `project_id` (`project_id`),
   ADD KEY `work_type_id` (`work_type_id`),
-  ADD KEY `idx_user_date` (`user_id`,`date`);
+  ADD KEY `idx_user_date` (`user_id`,`date`),
+  ADD KEY `fk_entry_submission` (`submission_id`);
+
+--
+-- Indexes for table `timesheet_submissions`
+--
+ALTER TABLE `timesheet_submissions`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `idx_user_year_week` (`user_id`,`year`,`week`),
+  ADD KEY `reviewed_by` (`reviewed_by`);
 
 --
 -- Indexes for table `users`
@@ -227,7 +281,13 @@ ALTER TABLE `work_types`
 -- AUTO_INCREMENT for table `captcha_store`
 --
 ALTER TABLE `captcha_store`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=50;
+
+--
+-- AUTO_INCREMENT for table `login_attempts`
+--
+ALTER TABLE `login_attempts`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `projects`
@@ -240,6 +300,12 @@ ALTER TABLE `projects`
 --
 ALTER TABLE `timesheet_entries`
   MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+
+--
+-- AUTO_INCREMENT for table `timesheet_submissions`
+--
+ALTER TABLE `timesheet_submissions`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -261,9 +327,17 @@ ALTER TABLE `work_types`
 -- Constraints for table `timesheet_entries`
 --
 ALTER TABLE `timesheet_entries`
+  ADD CONSTRAINT `fk_entry_submission` FOREIGN KEY (`submission_id`) REFERENCES `timesheet_submissions` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `timesheet_entries_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `timesheet_entries_ibfk_2` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE RESTRICT,
   ADD CONSTRAINT `timesheet_entries_ibfk_3` FOREIGN KEY (`work_type_id`) REFERENCES `work_types` (`id`) ON DELETE RESTRICT;
+
+--
+-- Constraints for table `timesheet_submissions`
+--
+ALTER TABLE `timesheet_submissions`
+  ADD CONSTRAINT `timesheet_submissions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `timesheet_submissions_ibfk_2` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
