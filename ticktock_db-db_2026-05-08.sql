@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: May 08, 2026 at 10:25 AM
+-- Generation Time: May 08, 2026 at 10:41 AM
 -- Server version: 8.2.0
 -- PHP Version: 8.3.0
 
@@ -39,11 +39,10 @@ CREATE TABLE `captcha_store` (
 --
 
 INSERT INTO `captcha_store` (`id`, `token`, `answer`, `expires_at`) VALUES
-(58, '5751cca94f5dd2640a27f80ad0adf50d', '11', '2026-05-08 14:25:01'),
-(61, '0dd4a667db46da35539c8597a2d9b372', '6', '2026-05-08 14:28:37'),
-(62, 'bb735cab12d8c7755f1aab3b8a77ed73', '16', '2026-05-08 14:30:42'),
-(63, 'ec8c64608fb1bfc8bf097a78ec15afff', '13', '2026-05-08 14:32:14'),
-(64, '9d7ef5c9d3fc0c22ee74580d42d6b391', '10', '2026-05-08 14:34:55');
+(65, '810df5b102265d4222e08d0f1e913162', '11', '2026-05-08 14:44:36'),
+(66, '16cc9d7dd363407b6e31dc0a56bad208', '7', '2026-05-08 14:45:13'),
+(67, '99753f40184ca5dcf19171dba7758508', '16', '2026-05-08 14:47:43'),
+(68, '4edb6a5af172a1358bb9b2414d1a18a3', '5', '2026-05-08 14:48:17');
 
 -- --------------------------------------------------------
 
@@ -80,6 +79,25 @@ INSERT INTO `projects` (`id`, `name`, `is_active`, `created_at`) VALUES
 (3, 'API Integration Layer', 1, '2026-05-08 06:37:32'),
 (4, 'Client Portal v2', 1, '2026-05-08 06:37:32'),
 (5, 'New project 2025 Web App', 1, '2026-05-08 09:24:52');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `system_settings`
+--
+
+CREATE TABLE `system_settings` (
+  `setting_key` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `setting_value` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `system_settings`
+--
+
+INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
+('company_name', 'ticktock'),
+('default_standard_hours', '40.0');
 
 -- --------------------------------------------------------
 
@@ -138,7 +156,9 @@ INSERT INTO `timesheet_entries` (`id`, `user_id`, `date`, `project_id`, `work_ty
 (31, 2, '2024-01-04', 2, 1, NULL, 'Implemented user authentication flow in mobile app with biometric login and secure token storage.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
 (32, 2, '2024-01-05', 3, 5, NULL, 'Tested all API v2 integration points against staging environment and filed bug reports for 5 endpoints.', 8.00, '2026-05-08 06:37:32', '2026-05-08 06:37:32'),
 (33, 1, '2025-12-29', 3, 2, NULL, 'this is new', 1.00, '2026-05-08 07:01:02', '2026-05-08 07:01:02'),
-(34, 5, '2025-12-29', 3, 8, 1, 'i have made a meeting with the client', 2.00, '2026-05-08 09:11:25', '2026-05-08 09:14:47');
+(34, 5, '2025-12-29', 3, 8, 1, 'i have made a meeting with the client', 2.00, '2026-05-08 09:11:25', '2026-05-08 09:14:47'),
+(35, 5, '2026-01-05', 3, 2, NULL, 'Done', 1.00, '2026-05-08 09:37:58', '2026-05-08 09:37:58'),
+(36, 5, '2026-01-05', 4, 8, NULL, 'Done', 2.00, '2026-05-08 09:38:11', '2026-05-08 09:38:11');
 
 -- --------------------------------------------------------
 
@@ -254,6 +274,12 @@ ALTER TABLE `projects`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `system_settings`
+--
+ALTER TABLE `system_settings`
+  ADD PRIMARY KEY (`setting_key`);
+
+--
 -- Indexes for table `timesheet_entries`
 --
 ALTER TABLE `timesheet_entries`
@@ -292,7 +318,7 @@ ALTER TABLE `work_types`
 -- AUTO_INCREMENT for table `captcha_store`
 --
 ALTER TABLE `captcha_store`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=65;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=69;
 
 --
 -- AUTO_INCREMENT for table `login_attempts`
@@ -310,7 +336,7 @@ ALTER TABLE `projects`
 -- AUTO_INCREMENT for table `timesheet_entries`
 --
 ALTER TABLE `timesheet_entries`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
 -- AUTO_INCREMENT for table `timesheet_submissions`

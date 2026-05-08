@@ -176,6 +176,11 @@ function logEmail(string $to, string $subject, string $body): void
 {
   $entry = '[' . date('Y-m-d H:i:s') . "] TO: $to | SUBJECT: $subject\nBODY: $body\n" . str_repeat('-', 40) . "\n";
   file_put_contents('email.txt', $entry, FILE_APPEND);
+
+  $headers = 'From: noreply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . "\r\n"
+    . 'Reply-To: noreply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . "\r\n"
+    . 'X-Mailer: PHP/' . phpversion();
+  @mail($to, $subject, $body, $headers);
 }
 
 $api = $_GET['api'] ?? '';
@@ -288,8 +293,10 @@ if ($api !== '') {
         if ($stmt->fetch())
           jsonError('Email already registered.');
         $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-        $stmt = $db->prepare("INSERT INTO users (name, email, password_hash, role, is_approved) VALUES (?, ?, ?, 'user', 0)");
-        $stmt->execute([$name, $email, $hash]);
+        $sStmt = $db->query("SELECT setting_value FROM system_settings WHERE setting_key = 'default_standard_hours'");
+        $stdHrs = (float) ($sStmt->fetchColumn() ?: 40.0);
+        $stmt = $db->prepare("INSERT INTO users (name, email, password_hash, role, is_approved, standard_hours) VALUES (?, ?, ?, 'user', 0, ?)");
+        $stmt->execute([$name, $email, $hash, $stdHrs]);
         jsonOut(['success' => true, 'message' => 'Registration successful! Your account is pending admin approval.']);
       } catch (PDOException $e) {
         jsonError('Registration failed.', 500);
@@ -425,7 +432,8 @@ if ($api !== '') {
             $uStmt = $db->prepare('SELECT user_id FROM timesheet_entries WHERE id = ?');
             $uStmt->execute([$id]);
             $targetUserId = $uStmt->fetchColumn();
-            if ($targetUserId) $userId = $targetUserId;
+            if ($targetUserId)
+              $userId = $targetUserId;
           }
           $dt = new DateTime($date);
           $year = (int) $dt->format('o');
@@ -473,7 +481,8 @@ if ($api !== '') {
             $uStmt = $db->prepare('SELECT user_id FROM timesheet_entries WHERE id = ?');
             $uStmt->execute([$id]);
             $targetUserId = $uStmt->fetchColumn();
-            if ($targetUserId) $userId = $targetUserId;
+            if ($targetUserId)
+              $userId = $targetUserId;
           }
           $stmt = $db->prepare('SELECT date FROM timesheet_entries WHERE id = ? AND user_id = ?');
           $stmt->execute([$id, $userId]);
@@ -783,7 +792,7 @@ if ($api !== '') {
         mkdir($uploadDir, 0755, true);
       }
       if (!file_exists($uploadDir . '.htaccess')) {
-        file_put_contents($uploadDir . '.htaccess', "php_flag engine off\nOptions -Indexes\n<FilesMatch \"\.(?i:php|php[0-9]|phtml|cgi|pl|fcgi|inc)$\">\nOrder allow,deny\nDeny from all\n</FilesMatch>");
+        file_put_contents($uploadDir . '.htaccess', "php_flag engine off\nOptions -Indexes\n<FilesMatch \"\.(?i:php|php[0-9]|phtml|cgi|pl|fcgi|inc)\$\">\nOrder allow,deny\nDeny from all\n</FilesMatch>");
       }
       $path = $uploadDir . $filename;
       if (move_uploaded_file($file['tmp_name'], $path)) {
@@ -817,7 +826,7 @@ if ($api !== '') {
           $stmt->execute([$token, $user['id']]);
           logEmail($email, 'Password Reset - ticktock', 'Hi ' . $user['name'] . ",\n\nUse this token to reset your password: $token\nIt expires in 1 hour.");
         }
-        jsonOut(['success' => true, 'message' => 'If that email exists, a reset token has been generated. Check email.txt for simulation.']);
+        jsonOut(['success' => true, 'message' => 'If that email exists, a reset token has been sent to your inbox.']);
       } catch (PDOException $e) {
         jsonError('Error processing request.', 500);
       }
@@ -877,6 +886,31 @@ if ($api !== '') {
         jsonOut(['success' => true, 'message' => 'Password changed successfully.']);
       } catch (PDOException $e) {
         jsonError('Failed to change password.', 500);
+      }
+      break;
+    case 'admin_settings':
+      requireAdmin();
+      if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        try {
+          $db = getDB();
+          $settings = $db->query('SELECT setting_key, setting_value FROM system_settings')->fetchAll(PDO::FETCH_KEY_PAIR);
+          jsonOut(['success' => true, 'settings' => $settings]);
+        } catch (PDOException $e) {
+          jsonError('Failed to load settings.', 500);
+        }
+      } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        verifyCsrf();
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        try {
+          $db = getDB();
+          $stmt = $db->prepare('INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?');
+          foreach ($body as $key => $val) {
+            $stmt->execute([$key, (string) $val, (string) $val]);
+          }
+          jsonOut(['success' => true, 'message' => 'Settings updated successfully.']);
+        } catch (PDOException $e) {
+          jsonError('Failed to save settings.', 500);
+        }
       }
       break;
     case 'reports':
@@ -1269,6 +1303,10 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           Global Reports
         </div>
+        <div class="user-dropdown-item" id="btn-admin-settings" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          System Settings
+        </div>
         <div class="user-dropdown-divider"></div>
         <div class="user-dropdown-item" id="btn-change-password">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -1463,6 +1501,26 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
             <div class="table-wrap">
                 <table><thead><tr><th>USER</th><th>HOURS</th></tr></thead><tbody id="report-users-tbody"></tbody></table>
             </div>
+        </div>
+    </div>
+  </div>
+  <div id="page-admin-settings" class="page">
+    <button class="btn-back btn-back-to-admin">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to Admin
+    </button>
+    <div class="page-title">System Settings</div>
+    <div class="card" style="max-width:500px">
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Company Name</label>
+                <input type="text" id="set-company-name" class="form-control" placeholder="Acme Corp">
+            </div>
+            <div class="form-group">
+                <label>Default Standard Hours (Per Week)</label>
+                <input type="number" id="set-default-hours" class="form-control" step="0.5" placeholder="40.0">
+            </div>
+            <button class="btn-primary" id="btn-save-settings">Save Settings</button>
         </div>
     </div>
   </div>
@@ -1943,6 +2001,23 @@ el('btn-admin-reports').addEventListener('click', function(){
   el('report-start').value = y + '-' + String(m+1).padStart(2,'0') + '-01';
   el('report-end').value = y + '-' + String(m+1).padStart(2,'0') + '-' + String(new Date(y, m+1, 0).getDate()).padStart(2,'0');
   el('btn-run-report').click();
+});
+el('btn-admin-settings').addEventListener('click', function(){
+  el('user-dropdown').classList.remove('open');
+  showPage('page-admin-settings');
+  apiCall('admin_settings').then(function(d){
+    if(d.success){
+      el('set-company-name').value = d.settings['company_name'] || 'ticktock';
+      el('set-default-hours').value = d.settings['default_standard_hours'] || '40.0';
+    }
+  });
+});
+el('btn-save-settings').addEventListener('click', function(){
+  var company = el('set-company-name').value.trim();
+  var hours = parseFloat(el('set-default-hours').value) || 40.0;
+  apiCall('admin_settings', 'POST', { company_name: company, default_standard_hours: hours }).then(function(d){
+    if(d.success){ Swal.fire({icon:'success', title:'Saved', text:d.message, timer:1500, showConfirmButton:false, toast:true, position:'top-end'}); }
+  });
 });
 document.querySelectorAll('.btn-back-to-admin').forEach(function(b){
   b.addEventListener('click', function(){ showPage('page-admin'); });
