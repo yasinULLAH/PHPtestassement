@@ -1031,7 +1031,7 @@ if ($api !== '') {
         $stmt->execute($params);
         $byDate = $stmt->fetchAll();
 
-        $stmt = $db->prepare("SELECT te.date, u.name as user_name, p.name as project_name, wt.name as work_type_name, te.hours, te.description FROM timesheet_entries te JOIN users u ON u.id = te.user_id JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE $where ORDER BY te.date DESC, te.id DESC LIMIT 500");
+        $stmt = $db->prepare("SELECT te.date, u.name as user_name, u.role, p.name as project_name, wt.name as work_type_name, te.hours, te.description FROM timesheet_entries te JOIN users u ON u.id = te.user_id JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE $where ORDER BY te.date DESC, te.id DESC LIMIT 500");
         $stmt->execute($params);
         $details = $stmt->fetchAll();
 
@@ -2785,9 +2785,10 @@ function renderRptDetails(){
     });
     var h = '';
     data.forEach(function(row){
+        var roleBadge = row.role === 'admin' ? ' <span class="badge" style="background:var(--blue-light);color:var(--blue);font-size:0.6rem;padding:0.15rem 0.4rem;margin-left:0.4rem">ADMIN</span>' : '';
         h += '<tr class="animate__animated animate__fadeIn">';
         h += '<td>'+formatDayLabel(row.date)+'</td>';
-        h += '<td>'+escHtml(row.user_name)+'</td>';
+        h += '<td>'+escHtml(row.user_name)+roleBadge+'</td>';
         h += '<td><span class="project-chip">'+escHtml(row.project_name)+'</span></td>';
         h += '<td>'+escHtml(row.work_type_name)+'</td>';
         h += '<td><strong>'+parseFloat(row.hours)+'h</strong></td>';
