@@ -1764,9 +1764,17 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
         <button class="btn-blue-sm" id="btn-new-task">+ New Task</button>
     </div>
     <div class="filters-bar" id="tasks-filters">
-        <input type="text" id="task-search" class="filter-select" placeholder="Search tasks..." style="flex:1;min-width:200px">
+        <input type="text" id="task-search" class="filter-select" placeholder="Search tasks..." style="flex:1;min-width:150px">
+        <input type="text" id="task-filter-date" class="filter-select" placeholder="Date Range" style="min-width:180px">
         <select id="task-filter-project" class="filter-select"><option value="">All Projects</option></select>
         <select id="task-filter-user" class="filter-select"><option value="">All Assignees</option></select>
+        <select id="task-filter-status" class="filter-select">
+            <option value="">All Statuses</option>
+            <option value="todo">To Do</option>
+            <option value="in_progress">In Progress</option>
+            <option value="review">Review</option>
+            <option value="done">Done</option>
+        </select>
     </div>
     <div class="kanban-board">
         <div class="kanban-col">
@@ -2853,11 +2861,22 @@ el('per-page-select').addEventListener('change', function(){
   STATE.currentPage = 1;
   applyFiltersAndRender();
 });
+var taskDateFp = null;
 function populateTaskFilters() {
   let pSel = el('task-filter-project');
   if(pSel.options.length <= 1) STATE.projects.forEach(p => pSel.innerHTML += `<option value="${p.id}">${escHtml(p.name)}</option>`);
   let uSel = el('task-filter-user');
   if(uSel.options.length <= 1) STATE.allUsers.forEach(u => uSel.innerHTML += `<option value="${u.id}">${escHtml(u.name)}</option>`);
+  if(!taskDateFp) {
+    let d2 = new Date();
+    let d1 = new Date(); d1.setMonth(d1.getMonth() - 6);
+    let saved = JSON.parse(localStorage.getItem('tt_all_filters') || '{}');
+    taskDateFp = flatpickr(el('task-filter-date'), {
+      mode: 'range', dateFormat: 'Y-m-d',
+      defaultDate: saved['task-filter-date'] ? saved['task-filter-date'].split(' to ') : [d1, d2],
+      onClose: function(selectedDates) { if(selectedDates.length === 2 || selectedDates.length === 0) { saveFiltersState(); renderTasks(); } }
+    });
+  }
   loadFiltersState();
 }
 
@@ -2879,17 +2898,25 @@ function renderTasks() {
   var term = (el('task-search').value || '').toLowerCase();
   var proj = el('task-filter-project').value;
   var usr = el('task-filter-user').value;
+  var stat = el('task-filter-status').value;
+  var dates = taskDateFp ? taskDateFp.selectedDates : [];
+  var startD = dates.length === 2 ? formatFP(dates[0]) + ' 00:00:00' : '';
+  var endD = dates.length === 2 ? formatFP(dates[1]) + ' 23:59:59' : '';
   
   ['todo','in_progress','review','done'].forEach(col => {
     let wrap = el('kanban-'+col);
     if(!wrap) return;
     wrap.innerHTML = '';
+    if (stat && stat !== col) { el('count-'+col).textContent = 0; return; }
     
     let tasks = STATE.tasks.filter(t => {
       if (t.status !== col) return false;
       if (term && !t.title.toLowerCase().includes(term) && !(t.description||'').toLowerCase().includes(term)) return false;
       if (proj && t.project_id != proj) return false;
       if (usr && t.assigned_to != usr) return false;
+      if (startD && endD && t.created_at) {
+        if (t.created_at < startD || t.created_at > endD) return false;
+      }
       return true;
     });
     
@@ -2972,7 +2999,7 @@ function initKanban() {
   });
 }
 
-['task-search', 'task-filter-project', 'task-filter-user'].forEach(id => {
+['task-search', 'task-filter-project', 'task-filter-user', 'task-filter-status'].forEach(id => {
   var elem = el(id);
   if(elem) {
     elem.addEventListener('input', function() { saveFiltersState(); renderTasks(); });
