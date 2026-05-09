@@ -94,6 +94,8 @@ Bannu Software Solutions
 📱 WhatsApp: [+92 336 1593533](https://wa.me/923361593533)
 
 ---
+## [View All Features and Functionalities]
+(./app_all_features_and_functionalities_readme.md)
 
 *© 2026 tentwenty. All rights reserved.*
 
