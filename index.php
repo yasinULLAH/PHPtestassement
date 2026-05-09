@@ -2866,7 +2866,15 @@ function populateTaskFilters() {
   let pSel = el('task-filter-project');
   if(pSel.options.length <= 1) STATE.projects.forEach(p => pSel.innerHTML += `<option value="${p.id}">${escHtml(p.name)}</option>`);
   let uSel = el('task-filter-user');
-  if(uSel.options.length <= 1) STATE.allUsers.forEach(u => uSel.innerHTML += `<option value="${u.id}">${escHtml(u.name)}</option>`);
+  if(uSel.options.length <= 1) {
+    let isAdmin = STATE.user && STATE.user.role === 'admin';
+    if (isAdmin) {
+      STATE.allUsers.forEach(u => uSel.innerHTML += `<option value="${u.id}">${escHtml(u.name)}</option>`);
+    } else {
+      uSel.innerHTML = `<option value="${STATE.user.id}">${escHtml(STATE.user.name)}</option>`;
+      uSel.disabled = true;
+    }
+  }
   if(!taskDateFp) {
     let d2 = new Date();
     let d1 = new Date(); d1.setMonth(d1.getMonth() - 6);
