@@ -25,10 +25,8 @@ This is a self-contained application, so no complex setup is required.
 1. Download the project files (`index.html`, `manifest.json`, `sw.js`, `icon.svg`).
 2. Run them through a local server (e.g., VS Code Live Server or `php -S localhost:8000`) for Service Workers and PWA features to function correctly.
 3. **Login Details**:
-   - You can create a new account via the registration page.
-   - Or use the default testing credentials:
-     - **Email**: `name@example.com`
-     - **Password**: `password`
+   - **Account Creation**: This is a client-side application. You can create your own account directly on the registration page.
+   - All data is stored locally in your browser's IndexedDB.
 
 ## 💡 Important Notes & Assumptions
 - **Local Data Persistence**: All your data is stored in the browser's IndexedDB. Clearing browser cache/site data will delete your timesheets. Use the **Backup Data** button frequently to keep your data safe.

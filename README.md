@@ -80,6 +80,10 @@ Unlike typical framework-heavy builds, this project utilizes **Native PHP and Va
 3. Update DB credentials in `index.php`.
 4. Run on any PHP-enabled server.
 
+#### 🔑 Test Credentials
+- **Admin:** `yasin@tentwenty.me` / `admin@123`
+- **User:** `khan@khan.com` / `admin@123`
+
 ---
 
 ## 👤 Author

@@ -23,7 +23,7 @@ For your convenience, I have provided pre-seeded accounts in the database. Use t
 *(Allows full access to User Management, Approvals, Project CRUD, and Reporting)*
 
 ### 👤 Standard User Account
-- **Email:** `sarah.connor@tentwenty.me`
+- **Email:** `khan@khan.com`
 - **Password:** `admin@123`
 
 ---

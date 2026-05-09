@@ -92,6 +92,10 @@
 4. **Folders:** Ensure `uploads/avatars/` is writable (`chmod 755`).
 5. **Deploy:** Upload `index.php` to web root. Access via browser. First user registers → Admin approves → System ready.
 
+#### 🔑 Test Credentials
+- **Admin Account:** `yasin@tentwenty.me` / `admin@123`
+- **User Account:** `khan@khan.com` / `admin@123`
+
 #### 📊 Inferred Database Schema
 ```sql
 users (id, name, email, password_hash, role, is_approved, is_active, is_deleted, standard_hours, avatar_url, reset_token, reset_expires, created_at)
@@ -171,6 +175,10 @@ login_attempts (id, ip_address, attempt_time)
 3. **کنفیگ:** `index.php` کے اوپر `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` اپ ڈیٹ کریں۔
 4. **فولڈرز:** `uploads/avatars/` بنائیں اور `755` پرمیشن دیں۔
 5. **ڈپلائے:** `index.php` ویب روٹ میں اپ لوڈ کریں۔ پہلا صارف رجسٹر ہو → ایڈمن اپروو → سسٹم تیار۔
+
+#### 🔑 ٹیسٹ کریڈنشلز (Test Credentials)
+- **ایڈمن اکاؤنٹ (Admin):** `yasin@tentwenty.me` / `admin@123`
+- **یوزر اکاؤنٹ (User):** `khan@khan.com` / `admin@123`
 
 ---
 
