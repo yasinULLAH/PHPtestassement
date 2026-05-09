@@ -418,6 +418,7 @@ if ($api !== '') {
         $date = sanitizeStr($body['date'] ?? '');
         $projectId = (int) ($body['project_id'] ?? 0);
         $workTypeId = (int) ($body['work_type_id'] ?? 0);
+        $taskId = (int) ($body['task_id'] ?? 0);
         $description = sanitizeStr($body['description'] ?? '');
         $hours = round((float) ($body['hours'] ?? 0), 2);
         if (empty($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date))
@@ -433,7 +434,9 @@ if ($api !== '') {
         try {
           $db = getDB();
           $isAdmin = ($_SESSION['user_role'] === 'admin');
-          if ($id > 0 && $isAdmin) {
+          if ($id > 0) {
+            if (!$isAdmin)
+              jsonError('Only admins can edit logged time.');
             $uStmt = $db->prepare('SELECT user_id FROM timesheet_entries WHERE id = ?');
             $uStmt->execute([$id]);
             $targetUserId = $uStmt->fetchColumn();
@@ -449,6 +452,13 @@ if ($api !== '') {
           if (!$isAdmin && ($subStatus === 'pending' || $subStatus === 'approved')) {
             jsonError('This week is ' . $subStatus . ' and locked for editing.');
           }
+          if (!$isAdmin && $taskId > 0) {
+            $tStmt = $db->prepare('SELECT status FROM tasks WHERE id = ?');
+            $tStmt->execute([$taskId]);
+            $tStat = $tStmt->fetchColumn();
+            if ($tStat === 'review' || $tStat === 'done')
+              jsonError('Cannot log time. Task is under Review.');
+          }
           $stmt = $db->prepare('SELECT id FROM projects WHERE id = ? AND is_active = 1');
           $stmt->execute([$projectId]);
           if (!$stmt->fetch())
@@ -462,12 +472,12 @@ if ($api !== '') {
             $stmt->execute([$id, $userId]);
             if (!$stmt->fetch())
               jsonError('Entry not found or access denied.', 403);
-            $stmt = $db->prepare('UPDATE timesheet_entries SET date=?, project_id=?, work_type_id=?, description=?, hours=? WHERE id=? AND user_id=?');
-            $stmt->execute([$date, $projectId, $workTypeId, $description, $hours, $id, $userId]);
+            $stmt = $db->prepare('UPDATE timesheet_entries SET date=?, project_id=?, work_type_id=?, task_id=?, description=?, hours=? WHERE id=? AND user_id=?');
+            $stmt->execute([$date, $projectId, $workTypeId, $taskId ?: null, $description, $hours, $id, $userId]);
             jsonOut(['success' => true, 'message' => 'Entry updated successfully.']);
           } else {
-            $stmt = $db->prepare('INSERT INTO timesheet_entries (user_id, date, project_id, work_type_id, description, hours) VALUES (?, ?, ?, ?, ?, ?)');
-            $stmt->execute([$userId, $date, $projectId, $workTypeId, $description, $hours]);
+            $stmt = $db->prepare('INSERT INTO timesheet_entries (user_id, date, project_id, work_type_id, task_id, description, hours) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$userId, $date, $projectId, $workTypeId, $taskId ?: null, $description, $hours]);
             jsonOut(['success' => true, 'message' => 'Entry added successfully.', 'id' => (int) $db->lastInsertId()]);
           }
         } catch (PDOException $e) {
@@ -482,6 +492,8 @@ if ($api !== '') {
         try {
           $db = getDB();
           $isAdmin = ($_SESSION['user_role'] === 'admin');
+          if (!$isAdmin)
+            jsonError('Only admins can delete logged time.');
           if ($isAdmin) {
             $uStmt = $db->prepare('SELECT user_id FROM timesheet_entries WHERE id = ?');
             $uStmt->execute([$id]);
@@ -511,6 +523,108 @@ if ($api !== '') {
       } else {
         jsonError('Method not allowed.', 405);
       }
+      break;
+    case 'users_list':
+      requireAuth();
+      jsonOut(['success' => true, 'users' => getDB()->query('SELECT id, name FROM users WHERE is_active = 1 AND is_deleted = 0 ORDER BY name ASC')->fetchAll()]);
+      break;
+    case 'tasks':
+      requireAuth();
+      try {
+        $db = getDB();
+        $isAdmin = ($_SESSION['user_role'] === 'admin');
+        $params = [];
+        $where = '1=1';
+        if (!$isAdmin) {
+          $where = '(t.assigned_to = ? OR t.created_by = ?)';
+          $params = [$_SESSION['user_id'], $_SESSION['user_id']];
+        }
+        $stmt = $db->prepare("SELECT t.*, p.name as project_name, u.name as assignee_name FROM tasks t JOIN projects p ON p.id = t.project_id LEFT JOIN users u ON u.id = t.assigned_to WHERE $where ORDER BY t.created_at DESC");
+        $stmt->execute($params);
+        jsonOut(['success' => true, 'tasks' => $stmt->fetchAll()]);
+      } catch (PDOException $e) {
+        jsonError('Failed to load tasks.', 500);
+      }
+      break;
+    case 'task_save':
+      requireAuth();
+      verifyCsrf();
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $id = (int) ($body['id'] ?? 0);
+      $projectId = (int) ($body['project_id'] ?? 0);
+      $assignedTo = (int) ($body['assigned_to'] ?? 0);
+      $title = sanitizeStr($body['title'] ?? '');
+      $desc = sanitizeStr($body['description'] ?? '');
+      $status = sanitizeStr($body['status'] ?? 'todo');
+      if (empty($title))
+        jsonError('Task title is required.');
+      if ($projectId <= 0)
+        jsonError('Project is required.');
+      if ($_SESSION['user_role'] !== 'admin' && $assignedTo !== 0 && $assignedTo !== (int) $_SESSION['user_id']) {
+        jsonError('You can only assign tasks to yourself.');
+      }
+      try {
+        $db = getDB();
+        if ($id > 0 && $_SESSION['user_role'] !== 'admin') {
+          $check = $db->prepare('SELECT id FROM tasks WHERE id=? AND (created_by=? OR assigned_to=?)');
+          $check->execute([$id, $_SESSION['user_id'], $_SESSION['user_id']]);
+          if (!$check->fetch())
+            jsonError('Access denied.');
+        }
+        if ($id > 0) {
+          $db->prepare('UPDATE tasks SET project_id=?, assigned_to=?, title=?, description=?, status=? WHERE id=?')->execute([$projectId, $assignedTo ?: null, $title, $desc, $status, $id]);
+          jsonOut(['success' => true, 'message' => 'Task updated.']);
+        } else {
+          $db->prepare('INSERT INTO tasks (project_id, assigned_to, title, description, status, created_by) VALUES (?, ?, ?, ?, ?, ?)')->execute([$projectId, $assignedTo ?: null, $title, $desc, $status, $_SESSION['user_id']]);
+          jsonOut(['success' => true, 'message' => 'Task created.']);
+        }
+      } catch (PDOException $e) {
+        jsonError('Failed to save task.', 500);
+      }
+      break;
+    case 'task_status':
+      requireAuth();
+      verifyCsrf();
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $db = getDB();
+      if ($_SESSION['user_role'] !== 'admin') {
+        if ($body['status'] === 'done')
+          jsonError('Only admins can mark tasks as Done.');
+        $check = $db->prepare('SELECT status FROM tasks WHERE id=? AND (created_by=? OR assigned_to=?)');
+        $check->execute([$body['id'], $_SESSION['user_id'], $_SESSION['user_id']]);
+        $task = $check->fetch();
+        if (!$task)
+          jsonError('Access denied.');
+        if ($task['status'] === 'review' || $task['status'] === 'done')
+          jsonError('Task is locked in Review.');
+      }
+      $db->prepare('UPDATE tasks SET status=? WHERE id=?')->execute([$body['status'], $body['id']]);
+      jsonOut(['success' => true]);
+      break;
+    case 'task_entries':
+      requireAuth();
+      $taskId = (int) ($_GET['task_id'] ?? 0);
+      try {
+        $stmt = getDB()->prepare('SELECT te.*, u.name as user_name FROM timesheet_entries te JOIN users u ON u.id = te.user_id WHERE te.task_id = ? ORDER BY te.date DESC');
+        $stmt->execute([$taskId]);
+        jsonOut(['success' => true, 'entries' => $stmt->fetchAll()]);
+      } catch (PDOException $e) {
+        jsonError('Failed to load task entries.', 500);
+      }
+      break;
+    case 'task_delete':
+      requireAuth();
+      verifyCsrf();
+      $body = json_decode(file_get_contents('php://input'), true) ?? [];
+      $db = getDB();
+      if ($_SESSION['user_role'] !== 'admin') {
+        $check = $db->prepare('SELECT id FROM tasks WHERE id=? AND created_by=?');
+        $check->execute([$body['id'], $_SESSION['user_id']]);
+        if (!$check->fetch())
+          jsonError('Only the creator or admin can delete this task.');
+      }
+      $db->prepare('DELETE FROM tasks WHERE id=?')->execute([$body['id']]);
+      jsonOut(['success' => true]);
       break;
     case 'projects':
       requireAuth();
@@ -1136,6 +1250,7 @@ $csrf = csrfToken();
 <link rel="manifest" href="?api=manifest">
 <meta name="theme-color" content="#2563EB">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1304,7 +1419,7 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 .modal-title{font-size:1.1rem;font-weight:700;color:var(--text-primary)}
 .modal-close{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-sm);background:none;color:var(--text-muted);transition:all .15s;cursor:pointer;font-size:1.2rem;line-height:1}
 .modal-close:hover{background:var(--bg);color:var(--text-primary)}
-.modal-body{padding:1.5rem 1.75rem}
+.modal-body{padding:1.5rem 1.75rem;max-height:65vh;overflow-y:auto}
 .modal-footer{padding:1rem 1.75rem 1.5rem;display:flex;gap:.75rem;justify-content:flex-end}
 .modal-footer .btn-primary{width:auto;flex:1}
 .modal-footer .btn-outline{flex:0 0 auto}
@@ -1370,6 +1485,19 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
   .modal-footer{padding:1rem 1.25rem 1.25rem;flex-direction:column;gap:0.5rem}
   .modal-footer .btn-outline{width:100%}
 }
+#page-tasks { max-width: 1600px; }
+.kanban-board{display:flex;gap:1.5rem;overflow-x:auto;padding-bottom:1rem;min-height:500px}
+.kanban-col{flex:1;min-width:250px;background:#f3f4f6;border-radius:var(--radius-lg);padding:1rem;display:flex;flex-direction:column}
+.kanban-col-header{font-weight:700;margin-bottom:1rem;color:var(--text-primary);display:flex;justify-content:space-between;align-items:center}
+.kanban-cards{flex:1;display:flex;flex-direction:column;gap:0.75rem;min-height:100px}
+.task-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:1rem;cursor:grab;box-shadow:var(--shadow-sm);transition:box-shadow 0.2s}
+.task-card:active{cursor:grabbing}
+.task-card:hover{box-shadow:var(--shadow-md)}
+.task-title{font-weight:600;font-size:0.95rem;margin-bottom:0.25rem}
+.task-desc{font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.75rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.task-meta{display:flex;justify-content:space-between;align-items:center;font-size:0.75rem}
+.task-badge{padding:0.15rem 0.5rem;border-radius:999px;font-weight:600;background:var(--blue-light);color:var(--blue)}
+.task-card.dragging{opacity:0.5}
 @media print{
   .topbar,.filters-bar,.pagination,.btn-back,.entry-menu-wrap,.btn-add-task,.footer-bar{display:none!important}
   body{background:#fff}
@@ -1461,7 +1589,7 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 </div>
 <div id="app-main">
   <header class="topbar">
-    <div class="topbar-left">
+    <div class="topbar-left" id="topbar-home-link" style="cursor:pointer" title="Back to Home">
       <span class="topbar-brand">ticktock</span>
       <span class="topbar-section">Timesheets</span>
     </div>
@@ -1475,6 +1603,11 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
         <div class="user-dropdown-item" id="btn-show-profile">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           My Profile
+        </div>
+        <div class="user-dropdown-divider"></div>
+        <div class="user-dropdown-item" id="btn-nav-tasks">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Tasks & Tracking
         </div>
         <div class="user-dropdown-divider"></div>
         <div class="user-dropdown-item" id="btn-admin-users" style="display:none">
@@ -1623,6 +1756,35 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     </div>
     <div class="print-footer">
       Created by: Yasin Ullah – Bannu Software Solutions | www.yasinbss.com | WhatsApp: 03361593533
+    </div>
+  </div>
+  <div id="page-tasks" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+        <div class="page-title" style="margin-bottom:0">Tasks & Tracking</div>
+        <button class="btn-blue-sm" id="btn-new-task">+ New Task</button>
+    </div>
+    <div class="filters-bar" id="tasks-filters">
+        <input type="text" id="task-search" class="filter-select" placeholder="Search tasks..." style="flex:1;min-width:200px">
+        <select id="task-filter-project" class="filter-select"><option value="">All Projects</option></select>
+        <select id="task-filter-user" class="filter-select"><option value="">All Assignees</option></select>
+    </div>
+    <div class="kanban-board">
+        <div class="kanban-col">
+            <div class="kanban-col-header">To Do <span class="badge" id="count-todo">0</span></div>
+            <div class="kanban-cards" id="kanban-todo"></div>
+        </div>
+        <div class="kanban-col">
+            <div class="kanban-col-header">In Progress <span class="badge" id="count-in_progress">0</span></div>
+            <div class="kanban-cards" id="kanban-in_progress"></div>
+        </div>
+        <div class="kanban-col">
+            <div class="kanban-col-header">Review <span class="badge" id="count-review">0</span></div>
+            <div class="kanban-cards" id="kanban-review"></div>
+        </div>
+        <div class="kanban-col">
+            <div class="kanban-col-header">Done <span class="badge" id="count-done">0</span></div>
+            <div class="kanban-cards" id="kanban-done"></div>
+        </div>
     </div>
   </div>
   <div id="page-admin-projects" class="page">
@@ -1833,6 +1995,10 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <span>Profile</span>
     </button>
+    <button class="bottom-nav-item" id="bnav-tasks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <span>Tasks</span>
+    </button>
     <button class="bottom-nav-item" id="bnav-admin" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
       <span>Admin</span>
@@ -1907,7 +2073,11 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     </div>
     <div class="modal-body">
       <input type="hidden" id="modal-entry-id" value="">
-      <input type="hidden" id="modal-entry-date" value="">
+      <div class="form-group">
+        <label>Date <span style="color:var(--red)">*</span></label>
+        <input type="text" id="modal-entry-date" class="form-control" placeholder="Select Date" style="background-color:#fff">
+      </div>
+      <input type="hidden" id="modal-task-id" value="">
       <div class="form-group">
         <label for="modal-project">Select Project <span style="color:var(--red)">*</span></label>
         <select id="modal-project" class="form-control">
@@ -1941,6 +2111,34 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       <button class="btn-outline" id="modal-cancel-btn">Cancel</button>
       <button class="btn-primary" id="modal-save-btn">Add entry</button>
     </div>
+  </div>
+</div>
+<div class="modal-overlay" id="task-time-modal">
+  <div class="modal-box animate__animated animate__zoomIn animate__faster" style="max-width:700px">
+    <div class="modal-header"><span class="modal-title" id="tt-modal-title">Task Time Log</span><button class="modal-close" onclick="closeModal('task-time-modal')">&times;</button></div>
+    <div class="modal-body" style="max-height:60vh;overflow-y:auto;padding:0">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>DATE</th><th>USER</th><th>HOURS</th><th>DESCRIPTION</th><th>ACTIONS</th></tr></thead>
+          <tbody id="tt-modal-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn-outline" onclick="closeModal('task-time-modal')">Close</button></div>
+  </div>
+</div>
+<div class="modal-overlay" id="task-form-modal">
+  <div class="modal-box animate__animated animate__zoomIn animate__faster">
+    <div class="modal-header"><span class="modal-title" id="tmodal-header-text">Add Task</span><button class="modal-close" onclick="closeModal('task-form-modal')">&times;</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="tmodal-id">
+      <div class="form-group"><label>Title <span style="color:var(--red)">*</span></label><input type="text" id="tmodal-title-inp" class="form-control"></div>
+      <div class="form-group"><label>Project <span style="color:var(--red)">*</span></label><select id="tmodal-project" class="form-control"></select></div>
+      <div class="form-group"><label>Assign To</label><select id="tmodal-user" class="form-control"></select></div>
+      <div class="form-group"><label>Status</label><select id="tmodal-status" class="form-control"><option value="todo">To Do</option><option value="in_progress">In Progress</option><option value="review">Review</option><option value="done">Done</option></select></div>
+      <div class="form-group"><label>Description</label><textarea id="tmodal-desc" class="form-control" rows="3"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn-outline" onclick="closeModal('task-form-modal')">Cancel</button><button class="btn-primary" id="btn-save-task-frm">Save Task</button><button class="btn-outline" id="btn-delete-task" style="display:none;color:var(--red);border-color:var(--red);margin-right:auto">Delete</button></div>
   </div>
 </div>
 <div class="cp-modal-overlay" id="cp-modal">
@@ -2001,6 +2199,8 @@ var STATE = {
   adminSubmissions: [],
   reportProjects: [],
   reportUsers: [],
+  tasks: [],
+  allUsers: [],
 };
 function el(id){ return document.getElementById(id); }
 function showErr(id, msg){
@@ -2110,6 +2310,7 @@ function showPage(pageId){
   if(typeof updateBNav === 'function'){
     if(pageId === 'page-timesheets') updateBNav('bnav-home');
     else if(pageId === 'page-profile') updateBNav('bnav-profile');
+    else if(pageId === 'page-tasks') updateBNav('bnav-tasks');
     else if(pageId.indexOf('page-admin') === 0) updateBNav('bnav-admin');
   }
 }
@@ -2224,6 +2425,9 @@ el('btn-signin').addEventListener('click', function(){
 el('login-email').addEventListener('keydown', function(e){ if(e.key==='Enter') el('btn-signin').click(); });
 el('login-password').addEventListener('keydown', function(e){ if(e.key==='Enter') el('btn-signin').click(); });
 el('captcha-answer').addEventListener('keydown', function(e){ if(e.key==='Enter') el('btn-signin').click(); });
+if(el('topbar-home-link')) {
+  el('topbar-home-link').addEventListener('click', function() { showPage('page-timesheets'); });
+}
 el('user-menu-btn').addEventListener('click', function(e){
   e.stopPropagation();
   el('user-dropdown').classList.toggle('open');
@@ -2232,6 +2436,7 @@ if(el('bnav-home')){
   el('bnav-home').addEventListener('click', function() { showPage('page-timesheets'); });
   el('bnav-profile').addEventListener('click', function() { el('btn-show-profile').click(); });
   el('bnav-admin').addEventListener('click', function() { el('btn-admin-overview-menu').click(); });
+  if(el('bnav-tasks')) el('bnav-tasks').addEventListener('click', function() { showPage('page-tasks'); loadTasks(); });
   el('bnav-menu').addEventListener('click', function(e) {
     e.stopPropagation();
     el('user-dropdown').classList.toggle('open');
@@ -2267,6 +2472,11 @@ el('btn-logout').addEventListener('click', function(){
 });
 el('btn-back-to-list').addEventListener('click', function(){
   showPage('page-timesheets');
+});
+el('btn-nav-tasks').addEventListener('click', function(){
+  el('user-dropdown').classList.remove('open');
+  showPage('page-tasks');
+  loadTasks();
 });
 el('btn-show-profile').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
@@ -2622,6 +2832,203 @@ el('per-page-select').addEventListener('change', function(){
   STATE.perPage = parseInt(this.value);
   STATE.currentPage = 1;
   applyFiltersAndRender();
+});
+function populateTaskFilters() {
+  let pSel = el('task-filter-project');
+  if(pSel.options.length <= 1) STATE.projects.forEach(p => pSel.innerHTML += `<option value="${p.id}">${escHtml(p.name)}</option>`);
+  let uSel = el('task-filter-user');
+  if(uSel.options.length <= 1) STATE.allUsers.forEach(u => uSel.innerHTML += `<option value="${u.id}">${escHtml(u.name)}</option>`);
+  loadFiltersState();
+}
+
+function loadTasks(){
+  prefetchProjectsAndTypes();
+  let p1 = apiCall('tasks');
+  let p2 = STATE.allUsers.length ? Promise.resolve() : apiCall('users_list').then(d => { if(d.success) STATE.allUsers = d.users; });
+  Promise.all([p1, p2]).then(res => {
+    if(res[0].success) { 
+      STATE.tasks = res[0].tasks; 
+      populateTaskFilters();
+      renderTasks(); 
+      initKanban(); 
+    }
+  });
+}
+
+function renderTasks() {
+  var term = (el('task-search').value || '').toLowerCase();
+  var proj = el('task-filter-project').value;
+  var usr = el('task-filter-user').value;
+  
+  ['todo','in_progress','review','done'].forEach(col => {
+    let wrap = el('kanban-'+col);
+    if(!wrap) return;
+    wrap.innerHTML = '';
+    
+    let tasks = STATE.tasks.filter(t => {
+      if (t.status !== col) return false;
+      if (term && !t.title.toLowerCase().includes(term) && !(t.description||'').toLowerCase().includes(term)) return false;
+      if (proj && t.project_id != proj) return false;
+      if (usr && t.assigned_to != usr) return false;
+      return true;
+    });
+    
+    el('count-'+col).textContent = tasks.length;
+    tasks.forEach(t => {
+      wrap.innerHTML += `<div class="task-card" draggable="true" data-id="${t.id}" ondragstart="event.dataTransfer.setData('text/plain', event.target.dataset.id)">
+        <div class="task-meta" style="margin-bottom:0.5rem"><span class="task-badge">${escHtml(t.project_name)}</span> <span style="color:var(--text-muted);font-size:0.7rem">${t.assignee_name ? escHtml(t.assignee_name) : 'Unassigned'}</span></div>
+        <div class="task-title">${escHtml(t.title)}</div>
+        ${t.description ? `<div class="task-desc">${escHtml(t.description)}</div>` : ''}
+        <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap">
+            <button class="btn-blue-sm" style="padding:0.25rem 0.5rem;font-size:0.7rem" onclick="logTimeTask(${t.id})">Log Time</button>
+            <button class="action-link" style="padding:0;font-size:0.75rem" onclick="viewTaskTime(${t.id}, '${escHtml(t.title).replace(/'/g, "\\'")}')">View Time</button>
+            <button class="action-link" style="padding:0;font-size:0.75rem" onclick="editTask(${t.id})">Edit</button>
+        </div>
+      </div>`;
+    });
+  });
+}
+
+window.viewTaskTime = function(taskId, title) {
+  el('tt-modal-title').textContent = 'Time Log: ' + title;
+  el('tt-modal-tbody').innerHTML = '<tr><td colspan="5" style="text-align:center">Loading...</td></tr>';
+  openModal('task-time-modal');
+  apiCall('task_entries&task_id='+taskId).then(function(d){
+    if(d.success){
+      let h = '';
+      let total = 0;
+      let isAdmin = STATE.user && STATE.user.role === 'admin';
+      d.entries.forEach(function(e){
+        total += parseFloat(e.hours);
+        let canEdit = isAdmin;
+        h += `<tr>
+          <td>${new Date(e.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</td>
+          <td>${escHtml(e.user_name)}</td>
+          <td>${parseFloat(e.hours)}h</td>
+          <td>${escHtml(e.description)}</td>
+          <td>${canEdit ? `<button class="action-link" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&#39;")}); closeModal("task-time-modal")'>Edit</button>` : '-'}</td>
+        </tr>`;
+      });
+      if(!h) h = '<tr><td colspan="5" style="text-align:center">No time logged yet.</td></tr>';
+      else h += `<tr><td colspan="2" style="text-align:right;font-weight:bold">Total:</td><td colspan="3" style="font-weight:bold;color:var(--blue)">${total}h</td></tr>`;
+      el('tt-modal-tbody').innerHTML = h;
+    }
+  });
+};
+
+function initKanban() {
+  document.querySelectorAll('.kanban-cards').forEach(col => {
+    col.ondragover = e => e.preventDefault();
+    col.ondrop = e => {
+      e.preventDefault();
+      let id = e.dataTransfer.getData('text/plain');
+      let status = col.id.replace('kanban-', '');
+      let isAdmin = STATE.user && STATE.user.role === 'admin';
+      let task = STATE.tasks.find(x=>x.id==id);
+      if (!isAdmin && (task.status === 'review' || task.status === 'done')) {
+        Swal.fire({icon:'error', text:'Task is locked in Review/Done.'});
+        return;
+      }
+      if (status === 'done' && !isAdmin) {
+        Swal.fire({icon:'error', text:'Only admins can move tasks to Done.'});
+        return;
+      }
+      if (status === 'review' && !isAdmin) {
+        Swal.fire({title:'Submit for Review?', text:'You will not be able to log more time or move this task back.', icon:'warning', showCancelButton:true}).then(r => {
+          if(r.isConfirmed) {
+            apiCall('task_status','POST',{id:id, status:status}).then(d => {
+              if(d.success) { task.status = status; renderTasks(); }
+              else Swal.fire({icon:'error', text:d.error});
+            });
+          }
+        });
+        return;
+      }
+      apiCall('task_status','POST',{id:id, status:status}).then(d => {
+        if(d.success) { task.status = status; renderTasks(); }
+        else Swal.fire({icon:'error', text:d.error});
+      });
+    };
+  });
+}
+
+['task-search', 'task-filter-project', 'task-filter-user'].forEach(id => {
+  var elem = el(id);
+  if(elem) {
+    elem.addEventListener('input', function() { saveFiltersState(); renderTasks(); });
+    elem.addEventListener('change', function() { saveFiltersState(); renderTasks(); });
+  }
+});
+window.logTimeTask = function(id){
+  var t = STATE.tasks.find(x => x.id == id);
+  if(!t) return;
+  if (!STATE.user || (STATE.user.role !== 'admin' && (t.status === 'review' || t.status === 'done'))) {
+    Swal.fire({icon:'error', text:'Cannot log time. Task is under Review.'});
+    return;
+  }
+  var d = new Date();
+  var today = d.getFullYear()+'-'+(''+(d.getMonth()+1)).padStart(2,'0')+'-'+(''+d.getDate()).padStart(2,'0');
+  openAddModal(today);
+  el('modal-task-id').value = t.id;
+  setTimeout(() => { 
+    el('modal-project').value = t.project_id;
+    el('modal-desc').value = t.title;
+    el('modal-title-text').textContent = 'Log Time: ' + t.title;
+  }, 100);
+}
+function populateTaskModal(t) {
+  var pSel = el('tmodal-project'); pSel.innerHTML = '<option value="">Select Project</option>';
+  STATE.projects.forEach(p => pSel.innerHTML += `<option value="${p.id}" ${t&&p.id==t.project_id?'selected':''}>${escHtml(p.name)}</option>`);
+  var uSel = el('tmodal-user'); uSel.innerHTML = '<option value="">Unassigned</option>';
+  var isAdmin = STATE.user && STATE.user.role === 'admin';
+  STATE.allUsers.forEach(u => {
+    if (isAdmin || u.id == STATE.user.id) {
+      uSel.innerHTML += `<option value="${u.id}" ${t&&u.id==t.assigned_to?'selected':''}>${escHtml(u.name)}</option>`;
+    }
+  });
+}
+window.editTask = function(id) {
+  var t = STATE.tasks.find(x => x.id == id);
+  el('tmodal-header-text').textContent = 'Edit Task';
+  el('tmodal-id').value = t.id;
+  el('tmodal-title-inp').value = t.title;
+  el('tmodal-desc').value = t.description;
+  el('tmodal-status').value = t.status;
+  el('btn-delete-task').style.display = 'block';
+  populateTaskModal(t);
+  openModal('task-form-modal');
+};
+el('btn-new-task').addEventListener('click', function(){
+  el('tmodal-header-text').textContent = 'Add Task';
+  el('tmodal-id').value = '';
+  el('tmodal-title-inp').value = '';
+  el('tmodal-desc').value = '';
+  el('tmodal-status').value = 'todo';
+  el('btn-delete-task').style.display = 'none';
+  populateTaskModal(null);
+  openModal('task-form-modal');
+});
+el('btn-save-task-frm').addEventListener('click', function(){
+  var id = el('tmodal-id').value;
+  var title = el('tmodal-title-inp').value.trim();
+  var project = el('tmodal-project').value;
+  if(!title || !project) return Swal.fire({icon:'error', text:'Title and Project are required.'});
+  var body = {
+    id: id, title: title, description: el('tmodal-desc').value.trim(),
+    project_id: project, assigned_to: el('tmodal-user').value, status: el('tmodal-status').value
+  };
+  var btn = el('btn-save-task-frm'); btn.disabled=true;
+  apiCall('task_save','POST',body).then(d => {
+    btn.disabled=false;
+    if(d.success) { closeModal('task-form-modal'); loadTasks(); }
+    else Swal.fire({icon:'error', text:d.error});
+  });
+});
+el('btn-delete-task').addEventListener('click', function(){
+  var id = el('tmodal-id').value;
+  Swal.fire({title:'Delete task?', icon:'warning', showCancelButton:true, confirmButtonColor:'#DC2626'}).then(r => {
+    if(r.isConfirmed) apiCall('task_delete','DELETE',{id:id}).then(d => { if(d.success) { closeModal('task-form-modal'); loadTasks(); } });
+  });
 });
 function loadTimesheets(){
   var params = '';
@@ -3025,7 +3432,7 @@ function renderWeekDetail(totalHours, stdHours, status, reason){
         html += '<div class="entry-desc">'+escHtml(en.description)+'</div>';
         html += '<div class="entry-hours">'+parseFloat(en.hours)+'h</div>';
         html += '<span class="project-chip">'+escHtml(en.project_name)+'</span>';
-        if(!isLocked){
+        if(!isLocked && STATE.user.role === 'admin'){
             html += '<div class="entry-menu-wrap">';
             html += '<button class="entry-menu-btn" data-id="'+en.id+'">⋯</button>';
             html += '<div class="entry-menu-dropdown" id="menu-'+en.id+'">';
@@ -3086,12 +3493,28 @@ function populateModalSelects(projectId, workTypeId){
   ws.innerHTML = '<option value="">— Select Work Type —</option>';
   STATE.workTypes.forEach(function(w){ ws.innerHTML += '<option value="'+w.id+'"'+(w.id==workTypeId?' selected':'')+'>'+escHtml(w.name)+'</option>'; });
 }
+var entryDateFp = null;
+function setupEntryDateFp(defaultD) {
+  if(entryDateFp) entryDateFp.destroy();
+  entryDateFp = flatpickr(el('modal-entry-date'), {
+    defaultDate: defaultD,
+    disable: [function(date) {
+      var dStr = formatFP(date);
+      var locked = false;
+      STATE.timesheets.forEach(function(w) {
+        if(dStr >= w.date_start && dStr <= w.date_end && (w.status === 'pending' || w.status === 'approved')) locked = true;
+      });
+      return locked;
+    }]
+  });
+}
 function openAddModal(dateStr){
   clearErrors();
   STATE.editingEntryId = null;
   el('modal-title-text').textContent = 'Add New Entry';
   el('modal-entry-id').value = '';
-  el('modal-entry-date').value = dateStr;
+  if(el('modal-task-id')) el('modal-task-id').value = '';
+  setupEntryDateFp(dateStr);
   el('modal-desc').value = '';
   el('modal-hours').value = '1';
   el('modal-save-btn').textContent = 'Add entry';
@@ -3103,13 +3526,14 @@ function openEditModal(entry){
   STATE.editingEntryId = entry.id;
   el('modal-title-text').textContent = 'Edit Entry';
   el('modal-entry-id').value = entry.id;
-  el('modal-entry-date').value = entry.date;
+  setupEntryDateFp(entry.date);
   el('modal-desc').value = entry.description;
   el('modal-hours').value = entry.hours;
   el('modal-save-btn').textContent = 'Save changes';
   populateModalSelects(entry.project_id, entry.work_type_id);
   openModal('entry-modal');
 }
+window.openEditModal = openEditModal;
 function openModal(id){
   var m = el(id);
   m.classList.add('open');
@@ -3117,6 +3541,7 @@ function openModal(id){
   if(box){ box.classList.remove('animate__zoomIn'); void box.offsetWidth; box.classList.add('animate__zoomIn'); }
 }
 function closeModal(id){ el(id).classList.remove('open'); }
+window.closeModal = closeModal;
 el('modal-close-btn').addEventListener('click', function(){ closeModal('entry-modal'); });
 el('modal-cancel-btn').addEventListener('click', function(){ closeModal('entry-modal'); });
 el('entry-modal').addEventListener('click', function(e){ if(e.target === this) closeModal('entry-modal'); });
@@ -3144,7 +3569,8 @@ el('modal-save-btn').addEventListener('click', function(){
   if(!valid) return;
   var btn = el('modal-save-btn');
   btn.disabled=true; btn.innerHTML='<span class="loading-spinner"></span>Saving...';
-  var body = { date:date, project_id:projectId, work_type_id:workTypeId, description:desc, hours:hours };
+  var taskId = parseInt(el('modal-task-id').value) || 0;
+  var body = { date:date, project_id:projectId, work_type_id:workTypeId, task_id:taskId, description:desc, hours:hours };
   if(entryId) body.id = entryId;
   apiCall('entry','POST',body).then(function(d){
     btn.disabled=false; btn.textContent = entryId ? 'Save changes' : 'Add entry';
