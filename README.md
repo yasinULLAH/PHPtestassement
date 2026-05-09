@@ -95,7 +95,7 @@ Bannu Software Solutions
 
 ---
 ## Features and Functionalities
-For a complete list of all app features and detailed functionalities, please see the [App Features and Functionalities Document](./app-all-features-and-functionalities-readme.md).
+For a complete list of all app features and detailed functionalities, please see the [App Features and Functionalities](./app-features.md)
 
 *© 2026 tentwenty. All rights reserved.*
 
