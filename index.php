@@ -399,7 +399,7 @@ if ($api !== '') {
       }
       try {
         $db = getDB();
-        $stmt = $db->prepare('SELECT te.id, te.date, te.description, te.hours, p.name as project_name, p.id as project_id, wt.name as work_type_name, wt.id as work_type_id FROM timesheet_entries te JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE te.user_id = ? AND te.date BETWEEN ? AND ? ORDER BY te.date ASC, te.id ASC');
+        $stmt = $db->prepare('SELECT te.id, te.date, te.description, te.hours, te.task_id, p.name as project_name, p.id as project_id, wt.name as work_type_name, wt.id as work_type_id FROM timesheet_entries te JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE te.user_id = ? AND te.date BETWEEN ? AND ? ORDER BY te.date ASC, te.id ASC');
         $stmt->execute([$userId, $startDate, $endDate]);
         $entries = $stmt->fetchAll();
         $totalHours = array_sum(array_column($entries, 'hours'));
@@ -891,7 +891,7 @@ if ($api !== '') {
       $subId = (int) ($_GET['id'] ?? 0);
       try {
         $db = getDB();
-        $stmt = $db->prepare('SELECT te.id, te.date, te.description, te.hours, te.project_id, te.work_type_id, p.name as project_name, wt.name as work_type_name FROM timesheet_entries te JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE te.submission_id = ? ORDER BY te.date ASC');
+        $stmt = $db->prepare('SELECT te.id, te.date, te.description, te.hours, te.task_id, te.project_id, te.work_type_id, p.name as project_name, wt.name as work_type_name FROM timesheet_entries te JOIN projects p ON p.id = te.project_id JOIN work_types wt ON wt.id = te.work_type_id WHERE te.submission_id = ? ORDER BY te.date ASC');
         $stmt->execute([$subId]);
         $entries = $stmt->fetchAll();
         jsonOut(['success' => true, 'entries' => $entries]);
@@ -2292,11 +2292,30 @@ function showLogin(){
 function showMain(){
   el('app-login').classList.remove('active');
   el('app-main').classList.add('active');
-  showPage('page-timesheets');
   loadTableState();
   loadFiltersState();
-  loadTimesheets();
   prefetchProjectsAndTypes();
+
+  var lastPage = localStorage.getItem('tt_last_page') || 'page-timesheets';
+  var isAdmin = STATE.user && STATE.user.role === 'admin';
+
+  if (lastPage === 'page-detail' || (lastPage.startsWith('page-admin') && !isAdmin)) {
+      lastPage = 'page-timesheets';
+  }
+
+  if (lastPage === 'page-tasks') el('btn-nav-tasks').click();
+  else if (lastPage === 'page-profile') el('btn-show-profile').click();
+  else if (lastPage === 'page-admin') el('btn-admin-users').click();
+  else if (lastPage === 'page-admin-projects') el('btn-admin-projects').click();
+  else if (lastPage === 'page-admin-work-types') el('btn-admin-work-types').click();
+  else if (lastPage === 'page-admin-overview') el('btn-admin-overview-menu').click();
+  else if (lastPage === 'page-admin-submissions') el('btn-admin-subs').click();
+  else if (lastPage === 'page-admin-reports') el('btn-admin-reports').click();
+  else if (lastPage === 'page-admin-settings') el('btn-admin-settings').click();
+  else {
+      showPage('page-timesheets');
+      loadTimesheets();
+  }
 }
 function showPage(pageId){
   document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
@@ -2313,6 +2332,7 @@ function showPage(pageId){
     else if(pageId === 'page-tasks') updateBNav('bnav-tasks');
     else if(pageId.indexOf('page-admin') === 0) updateBNav('bnav-admin');
   }
+  localStorage.setItem('tt_last_page', pageId);
 }
 function getInitials(name){
   return name.split(' ').map(function(w){ return w[0]; }).join('').substring(0,2).toUpperCase();
@@ -3526,6 +3546,7 @@ function openEditModal(entry){
   STATE.editingEntryId = entry.id;
   el('modal-title-text').textContent = 'Edit Entry';
   el('modal-entry-id').value = entry.id;
+  if(el('modal-task-id')) el('modal-task-id').value = entry.task_id || '';
   setupEntryDateFp(entry.date);
   el('modal-desc').value = entry.description;
   el('modal-hours').value = entry.hours;
