@@ -54,11 +54,9 @@ For your convenience, I have provided pre-seeded accounts in the database. Use t
 - MySQL / MariaDB
 
 ### Database Setup
-1. Create a new database named `ticktock_db`.
-2. Import the provided SQL file. You have two options:
-   - **`ticktock_db-db_2026-05-08.sql`**: (**Recommended**) A full export from phpMyAdmin containing the latest schema and all pre-seeded test data.
-   - **`database.sql`**: The clean architectural schema.
-3. Open `index.php` and update the database configuration constants at the top:
+1. **Create Database**: Open your MySQL manager (like phpMyAdmin) and create a new database named `ticktock_db`.
+2. **Import Data**: Import the provided **`ticktock_db-db_2026-05-08.sql`** file into the `ticktock_db` database you just created. This file contains the complete schema, latest features, and pre-seeded test accounts.
+3. **Configure**: Open `index.php` and update the database configuration constants at the top:
    ```php
    define('DB_HOST', 'localhost');
    define('DB_NAME', 'ticktock_db');

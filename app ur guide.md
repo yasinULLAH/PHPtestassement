@@ -81,7 +81,7 @@
 
 ### 🛠️ Installation & Configuration
 1. **Requirements:** PHP 8.0+, MySQL 5.7+, Apache/Nginx, GD Library (for CAPTCHA).
-2. **Database Setup:** Create DB `ticktock_db`. Run inferred schema (see below).
+2. **Database Setup:** Create a database named `ticktock_db` in MySQL. Import the provided **`ticktock_db-db_2026-05-08.sql`** file.
 3. **Config:** Edit top of `index.php`:
    ```php
    define('DB_HOST', 'localhost');
@@ -167,7 +167,7 @@ login_attempts (id, ip_address, attempt_time)
 
 ### 🛠️ انسٹالیشن اور ترتیب
 1. **ضروریات:** PHP 8.0+, MySQL 5.7+, Apache/Nginx, GD Library۔
-2. **ڈیٹا بیس:** `ticktock_db` بنائیں۔ اسکیما (اوپر دی گئی) امپورٹ کریں۔
+2. **ڈیٹا بیس:** `ticktock_db` نام کا ڈیٹا بیس بنائیں اور اس میں فراہم کردہ **`ticktock_db-db_2026-05-08.sql`** فائل امپورٹ کریں۔
 3. **کنفیگ:** `index.php` کے اوپر `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` اپ ڈیٹ کریں۔
 4. **فولڈرز:** `uploads/avatars/` بنائیں اور `755` پرمیشن دیں۔
 5. **ڈپلائے:** `index.php` ویب روٹ میں اپ لوڈ کریں۔ پہلا صارف رجسٹر ہو → ایڈمن اپروو → سسٹم تیار۔

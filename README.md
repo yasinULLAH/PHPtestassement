@@ -72,12 +72,13 @@ Unlike typical framework-heavy builds, this project utilizes **Native PHP and Va
 - **`index.php`**: The Server-Side Enterprise App. (Requires PHP & MySQL).
 - **`PHPreadme.md`**: Detailed technical setup for the PHP version.
 - **`README_UR.md`**: Dedicated documentation for the Client-Side PWA features.
-- **`database.sql`**: Complete schema for the MySQL environment.
+- **`ticktock_db-db_2026-05-08.sql`**: Complete database backup including schema and test data.
 
 ### Quick Start (Server-Side)
-1. Import `ticktock_db-db_2026-05-08.sql` (Recommended) or `database.sql` into your MySQL server.
-2. Update DB credentials in `index.php`.
-3. Run on any PHP-enabled server.
+1. Create a database named `ticktock_db` in MySQL.
+2. Import `ticktock_db-db_2026-05-08.sql` into the new database.
+3. Update DB credentials in `index.php`.
+4. Run on any PHP-enabled server.
 
 ---
 
