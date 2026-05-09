@@ -30,16 +30,18 @@ This project demonstrates versatility by providing two complete solutions for di
 **Target:** Teams requiring centralized data management and administrative oversight.
 - **Tech Stack:** Native PHP 8.0+, MySQL, Vanilla CSS.
 - **Key Features:**
-  - **Admin Control Panel:** Manage Users, Projects, and Work Types from a central UI.
-  - **Restore & Purge:** Advanced user lifecycle management with soft-delete, restoration, and permanent data purging.
-  - **Submission Workflow:** Multi-stage timesheet lifecycle (Draft -> Pending -> Approved/Rejected).
-  - **Advanced Review:** Administrators can edit individual timesheet entries during the review process to correct errors before approval.
-  - **Profile & Account Management:** User profile updates, avatar customization (with secure storage), and secure password changes.
-  - **System-Wide Settings:** Global configuration for company name and default standard work hours.
-  - **Global Analytics:** Detailed reporting on hours by project and user with dynamic date ranges.
-  - **Enhanced Security:** IP-based rate limiting, CSRF protection, math CAPTCHA, password complexity enforcement, and automated session idle/absolute timeouts.
-  - **Password Recovery:** Token-based password reset system with simulated email logging.
-  - **Data Export:** Built-in CSV export for payroll and external reporting.
+  - **🗂️ Kanban Task Management:** Full-featured task tracking system with "To Do", "In Progress", "Review", and "Done" stages.
+  - **🔗 Task-Timesheet Integration:** Seamlessly log hours directly against specific tasks for precise project tracking.
+  - **🛡️ Admin Control Panel:** Manage Users, Projects, and Work Types from a central UI.
+  - **♻️ Restore & Purge:** Advanced user lifecycle management with soft-delete, restoration, and permanent data purging.
+  - **📤 Submission Workflow:** Multi-stage timesheet lifecycle (Draft -> Pending -> Approved/Rejected).
+  - **✍️ Advanced Review:** Administrators can edit individual timesheet entries during the review process to correct errors before approval.
+  - **👤 Profile & Account Management:** User profile updates, avatar customization (with secure storage), and secure password changes.
+  - **⚙️ System-Wide Settings:** Global configuration for company name and default standard work hours.
+  - **📊 Global Analytics:** Rich, interactive dashboards with trend charts (Chart.js) showing hours by project, user, and work type.
+  - **🔒 Enhanced Security:** IP-based rate limiting, CSRF protection, math CAPTCHA, password complexity enforcement, and automated session idle/absolute timeouts.
+  - **🔑 Password Recovery:** Token-based password reset system with simulated email logging.
+  - **📥 Data Export:** Built-in CSV export for both users (personal) and admins (master report).
 
 ---
 
@@ -48,9 +50,10 @@ This project demonstrates versatility by providing two complete solutions for di
 - **📈 Timesheet Management:** Weekly dashboard with status tracking (Completed / Incomplete / Missing).
 - **📅 Smart Filtering:** Date range filtering using Flatpickr with automatic week-span expansion.
 - **📝 Daily Logging:** Surgical entry management; group tasks by day with project and work-type tagging.
+- **📋 Kanban Board:** (Enterprise Only) Visual task tracking with drag-and-drop status management.
 - **📊 Interactive Progress:** Real-time visual feedback on weekly targets (e.g., 40-hour goal) with skeleton loading for perceived speed.
 - **🔒 Security First:** Password strength enforcement (special characters), CSRF validation, and secure session handling.
-- **📱 Ultra-Responsive:** Pixel-perfect implementation of Figma designs across all device sizes with smooth Animate.css transitions.
+- **📱 Ultra-Responsive:** Pixel-perfect implementation of Figma designs across all device sizes with smooth Animate.css transitions and bottom-navigation for mobile.
 
 ---
 

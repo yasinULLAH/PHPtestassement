@@ -43,16 +43,23 @@
 - **Submission Flow:** Click "Submit for Approval" → locks the entire week → moves to admin queue → prevents further edits until reviewed.
 - **Export:** Download weekly timesheet as CSV with date, project, type, hours, description.
 
-#### 🛡️ 3. Admin Dashboard & Oversight
+#### 🗂️ 3. Tasks & Tracking (Kanban Board)
+- **Visual Workflow:** A full Kanban board with `To Do`, `In Progress`, `Review`, and `Done` columns.
+- **Task Management:** Create tasks with titles, descriptions, projects, and assignees. 
+- **Time Integration:** Log hours directly to a specific task. Viewing a task shows all associated timesheet entries and total time spent.
+- **Status Locking:** Tasks moved to `Review` or `Done` are locked from further time logging to ensure data integrity during final stages.
+- **Admin Oversight:** Admins can see and manage all tasks; regular users only see tasks they created or are assigned to.
+
+#### 🛡️ 4. Admin Dashboard & Oversight
 - **User Management Table:** View all users. Inline-edit roles, standard hours, approval status, or soft-delete (sets `is_active=0`, `is_deleted=1`). 
 - **Account Recovery:** Restore soft-deleted users or permanently **Purge** accounts (removing all associated timesheet data).
 - **Project & Work Type Management:** Add/edit reference data. Toggle `is_active` to hide from employee dropdowns without breaking historical data.
 - **Submission Review Queue:** View pending timesheets. Admins can **edit entries** during review to fix minor errors. Approve instantly or Reject with a mandatory reason.
-- **Global Reports:** Filter by date range. Aggregates total hours by Project and by User.
+- **Global Reports & Analytics:** High-level dashboard with Chart.js trend lines. Filter by user, project, or work type to see visual breakdowns of company time.
 - **System-Wide Settings:** Dedicated panel to manage global defaults such as the Company Name and Default Standard Hours for new registrations.
 
-#### 🎨 4. UI/UX & Client Experience
-- **Responsive Design:** Fully adaptive for desktop, tablet, and mobile.
+#### 🎨 5. UI/UX & Client Experience
+- **Responsive Design:** Fully adaptive for desktop, tablet, and mobile. Includes a specialized **bottom navigation bar** for mobile users.
 - **Performance:** Skeleton loaders for async data, lazy-loading modals, debounced interactions, zero framework overhead.
 - **Interactive Feedback:** Smooth animations with Animate.css and non-intrusive success/error toasts.
 - **Print-Ready:** Dedicated `@media print` styles hide navigation, filters, and buttons. Clean, professional paper output.
@@ -126,16 +133,23 @@ login_attempts (id, ip_address, attempt_time)
 - **جمع کروانے کا عمل:** "Submit for Approval" پر کلک → ہفتہ لاک ہو جاتا ہے → ایڈمن کیو میں چلا جاتا ہے → جائزے تک ایڈٹنگ بند رہتی ہے۔
 - **ایکسپورٹ:** ہفتہ وار ٹائم شیٹ CSV فارمیٹ میں ڈاؤن لوڈ کریں۔
 
-#### 🛡️ 3. ایڈمن ڈیش بورڈ اور نگرانی
+#### 🗂️ 3. ٹاسکس اور ٹریکنگ (کنبان بورڈ)
+- **وژوئل ورک فلو:** ایک مکمل کنبان بورڈ جس میں `To Do` (کرنا ہے)، `In Progress` (جاری ہے)، `Review` (جائزہ)، اور `Done` (مکمل) کالم شامل ہیں۔
+- **ٹاسک مینجمنٹ:** عنوان، تفصیل، پروجیکٹ اور اسائنی کے ساتھ ٹاسک بنائیں۔
+- **ٹائم انٹیگریشن:** کسی خاص ٹاسک کے لیے براہ راست گھنٹے لاگ کریں۔ ٹاسک دیکھنے پر اس سے منسلک تمام ٹائم شیٹ انٹریز اور کل وقت نظر آتا ہے۔
+- **اسٹیٹس لاکنگ:** `Review` یا `Done` میں منتقل کیے گئے ٹاسکس ٹائم لاگنگ کے لیے لاک ہو جاتے ہیں تاکہ ڈیٹا کی درستگی برقرار رہے۔
+- **ایڈمن نگرانی:** ایڈمن تمام ٹاسکس دیکھ سکتے ہیں؛ عام صارفین صرف اپنے بنائے ہوئے یا اسائن کردہ ٹاسکس دیکھ سکتے ہیں۔
+
+#### 🛡️ 4. ایڈمن ڈیش بورڈ اور نگرانی
 - **صارف مینجمنٹ:** تمام صارفین دیکھیں۔ رولز، معیاری گھنٹے، منظوری کی حالت آن لائن تبدیل کریں، یا سافٹ ڈیلیٹ کریں۔
 - **اکاؤنٹ ریکوری:** ڈیلیٹ شدہ صارفین کو **Restore** کریں یا ہمیشہ کے لیے **Purge** (مکمل خاتمہ) کریں۔
 - **پروجیکٹ اور ورک ٹائپس:** ریفرنس ڈیٹا شامل/ترمیم کریں۔ `is_active` ٹوگل کر کے پرانے ڈیٹا کو خراب کیے بغیر نئے ڈراپ ڈاؤن سے چھپائیں۔
 - **سبمیشن ریویو:** پینڈنگ ٹائم شیٹس دیکھیں۔ ایڈمن جائزے کے دوران **انٹریز کو ایڈیٹ** کر سکتے ہیں۔ فوری اپروو یا وجہ کے ساتھ ریجیکٹ کریں۔
-- **گلوبل رپورٹس:** ڈیٹ رینج فلٹر۔ پروجیکٹ اور صارف کے لحاظ سے کل گھنٹوں کا خلاصہ۔
+- **گلوبل رپورٹس اور اینالیٹکس:** Chart.js کے ذریعے لائیو چارٹس اور ٹرینڈز۔ پروجیکٹ اور صارف کے لحاظ سے کل گھنٹوں کا خلاصہ۔
 - **سسٹم سیٹنگز:** کمپنی کا نام اور ڈیفالٹ معیاری گھنٹے سیٹ کرنے کے لیے خصوصی پینل۔
 
-#### 🎨 4. UI/UX اور کلینٹ کا تجربہ
-- **ریسپانسو ڈیزائن:** ڈیسک ٹاپ، ٹیبلیٹ، موبائل کے لیے مکمل موافق۔
+#### 🎨 5. UI/UX اور کلینٹ کا تجربہ
+- **ریسپانسو ڈیزائن:** ڈیسک ٹاپ، ٹیبلیٹ، موبائل کے لیے مکمل موافق۔ موبائل صارفین کے لیے ایک خصوصی **باٹم نیویگیشن بار** شامل ہے۔
 - **کارکردگی:** اسکیلٹن لوڈرز، لیژی لوڈنگ ماڈلز، زیرو فریم ورک اوور ہیڈ۔
 - **انٹرایکٹو تجربہ:** Animate.css کے ذریعے بہترین اینیمیشنز اور ٹوسٹ نوٹیفکیشنز۔
 - **پرنٹ ریڈی:** `@media print` اسٹائلز نیویگیشن اور بٹنز چھپاتی ہیں۔ صاف، پروفیشنل کاغذی آؤٹ پٹ۔

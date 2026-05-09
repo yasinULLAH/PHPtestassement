@@ -2871,8 +2871,7 @@ function populateTaskFilters() {
     if (isAdmin) {
       STATE.allUsers.forEach(u => uSel.innerHTML += `<option value="${u.id}">${escHtml(u.name)}</option>`);
     } else {
-      uSel.innerHTML = `<option value="${STATE.user.id}">${escHtml(STATE.user.name)}</option>`;
-      uSel.disabled = true;
+      uSel.style.display = 'none';
     }
   }
   if(!taskDateFp) {
