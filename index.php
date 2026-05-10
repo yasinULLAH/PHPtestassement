@@ -1272,7 +1272,7 @@ if ($api !== '') {
     case 'manifest':
       header('Content-Type: application/manifest+json');
       echo json_encode([
-        'name' => 'ticktock', 'short_name' => 'ticktock', 'start_url' => '.', 'display' => 'standalone',
+        'name' => 'ticktock', 'short_name' => 'ticktock', 'start_url' => './index.php', 'display' => 'standalone',
         'background_color' => '#2563EB', 'theme_color' => '#2563EB',
         'icons' => [
           ['src' => 'icon_192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any maskable'],
