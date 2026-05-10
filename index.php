@@ -1014,6 +1014,12 @@ if ($api !== '') {
       if (move_uploaded_file($file['tmp_name'], $path)) {
         try {
           $db = getDB();
+          $stmt = $db->prepare('SELECT avatar_url FROM users WHERE id = ?');
+          $stmt->execute([$_SESSION['user_id']]);
+          $oldAvatar = $stmt->fetchColumn();
+          if (!empty($oldAvatar) && file_exists($oldAvatar)) {
+            @unlink($oldAvatar);
+          }
           $db->prepare('UPDATE users SET avatar_url = ? WHERE id = ?')->execute([$path, $_SESSION['user_id']]);
           $_SESSION['user_avatar_url'] = $path;
           jsonOut(['success' => true, 'avatar_url' => $path]);
