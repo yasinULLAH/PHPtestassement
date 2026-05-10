@@ -1641,7 +1641,7 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
 <div id="app-main">
   <header class="topbar">
     <div class="topbar-left" id="topbar-home-link" style="cursor:pointer" title="Back to Home">
-      <img src="logo.png" alt="ticktock" class="topbar-brand" style="height: 32px; width: auto; margin-right: 0.5rem; display: inline-block;">
+      <img src="logo.png" alt="ticktock" class="topbar-brand" style="height: 61px; width: auto; margin-right: 0.5rem; display: inline-block;">
       <span class="topbar-section">Timesheets</span>
     </div>
     <div class="topbar-right">
