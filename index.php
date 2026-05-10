@@ -10,6 +10,34 @@ ini_set('session.cookie_httponly', 1);
 ini_set('session.use_strict_mode', 1);
 date_default_timezone_set('UTC');
 session_start();
+if (!file_exists('favicon.ico') && file_exists('logo.png')) {
+  $sizes = [16, 32, 48, 72, 96, 128, 144, 152, 180, 192, 384, 512];
+  $srcImg = @imagecreatefrompng('logo.png');
+  if ($srcImg) {
+    $srcW = imagesx($srcImg);
+    $srcH = imagesy($srcImg);
+    foreach ($sizes as $size) {
+      $dstImg = imagecreatetruecolor($size, $size);
+      imagealphablending($dstImg, false);
+      imagesavealpha($dstImg, true);
+      $transparent = imagecolorallocatealpha($dstImg, 255, 255, 255, 127);
+      imagefilledrectangle($dstImg, 0, 0, $size, $size, $transparent);
+      $ratio = min($size / $srcW, $size / $srcH) * 0.9;
+      $newW = $srcW * $ratio;
+      $newH = $srcH * $ratio;
+      imagecopyresampled($dstImg, $srcImg, ($size - $newW) / 2, ($size - $newH) / 2, 0, 0, $newW, $newH, $srcW, $srcH);
+      imagepng($dstImg, 'icon_' . $size . '.png');
+      imagedestroy($dstImg);
+    }
+    imagedestroy($srcImg);
+
+    if (file_exists('icon_32.png')) {
+      $pngData = file_get_contents('icon_32.png');
+      $icoHeader = pack('vvvCCCCvvVV', 0, 1, 1, 32, 32, 0, 0, 1, 32, strlen($pngData), 22);
+      file_put_contents('favicon.ico', $icoHeader . $pngData);
+    }
+  }
+}
 
 function getDB(): PDO
 {
@@ -1227,8 +1255,14 @@ if ($api !== '') {
       break;
     case 'manifest':
       header('Content-Type: application/manifest+json');
-      $icon = 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" fill="#2563EB"/><text x="256" y="290" font-family="sans-serif" font-size="200" font-weight="bold" fill="#fff" text-anchor="middle">tt</text></svg>');
-      echo json_encode(['name' => 'ticktock', 'short_name' => 'ticktock', 'start_url' => '.', 'display' => 'standalone', 'background_color' => '#2563EB', 'theme_color' => '#2563EB', 'icons' => [['src' => $icon, 'sizes' => '512x512', 'type' => 'image/svg+xml']]]);
+      echo json_encode([
+        'name' => 'ticktock', 'short_name' => 'ticktock', 'start_url' => '.', 'display' => 'standalone',
+        'background_color' => '#2563EB', 'theme_color' => '#2563EB',
+        'icons' => [
+          ['src' => 'icon_192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any maskable'],
+          ['src' => 'icon_512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any maskable']
+        ]
+      ]);
       exit;
     case 'sw':
       header('Content-Type: application/javascript');
@@ -1247,6 +1281,13 @@ $csrf = csrfToken();
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ticktock — Timesheet Management</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="icon_16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icon_32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="icon_48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="icon_96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon_192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon_180.png">
 <link rel="manifest" href="?api=manifest">
 <meta name="theme-color" content="#2563EB">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1583,14 +1624,14 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
     </div>
   </div>
   <div class="login-right">
-    <div class="login-brand animate__animated animate__fadeIn">ticktock</div>
+    <img src="logo.png" alt="ticktock" class="login-brand animate__animated animate__fadeIn" style="max-height: 80px; width: auto; background: #ffffff; padding: 10px; border-radius: 8px;">
     <p class="login-brand-tagline animate__animated animate__fadeIn animate__delay-1s">Introducing ticktock, our cutting-edge timesheet web application designed to revolutionize how you manage employee work hours. With ticktock, you can effortlessly track and monitor employee attendance and productivity from anywhere, anytime, using any internet-connected device.</p>
   </div>
 </div>
 <div id="app-main">
   <header class="topbar">
     <div class="topbar-left" id="topbar-home-link" style="cursor:pointer" title="Back to Home">
-      <span class="topbar-brand">ticktock</span>
+      <img src="logo.png" alt="ticktock" class="topbar-brand" style="height: 32px; width: auto; margin-right: 0.5rem; display: inline-block;">
       <span class="topbar-section">Timesheets</span>
     </div>
     <div class="topbar-right">
@@ -2454,14 +2495,14 @@ el('login-email').addEventListener('keydown', function(e){ if(e.key==='Enter') e
 el('login-password').addEventListener('keydown', function(e){ if(e.key==='Enter') el('btn-signin').click(); });
 el('captcha-answer').addEventListener('keydown', function(e){ if(e.key==='Enter') el('btn-signin').click(); });
 if(el('topbar-home-link')) {
-  el('topbar-home-link').addEventListener('click', function() { showPage('page-timesheets'); });
+  el('topbar-home-link').addEventListener('click', function() { showPage('page-timesheets'); loadTimesheets(); });
 }
 el('user-menu-btn').addEventListener('click', function(e){
   e.stopPropagation();
   el('user-dropdown').classList.toggle('open');
 });
 if(el('bnav-home')){
-  el('bnav-home').addEventListener('click', function() { showPage('page-timesheets'); });
+  el('bnav-home').addEventListener('click', function() { showPage('page-timesheets'); loadTimesheets(); });
   el('bnav-profile').addEventListener('click', function() { el('btn-show-profile').click(); });
   el('bnav-admin').addEventListener('click', function() { el('btn-admin-overview-menu').click(); });
   if(el('bnav-tasks')) el('bnav-tasks').addEventListener('click', function() { showPage('page-tasks'); loadTasks(); });
@@ -2500,6 +2541,7 @@ el('btn-logout').addEventListener('click', function(){
 });
 el('btn-back-to-list').addEventListener('click', function(){
   showPage('page-timesheets');
+  loadTimesheets();
 });
 el('btn-nav-tasks').addEventListener('click', function(){
   el('user-dropdown').classList.remove('open');
@@ -2547,7 +2589,7 @@ el('btn-save-profile').addEventListener('click', function(){
     } else { Swal.fire({icon:'error', title:'Error', text:d.error}); }
   });
 });
-el('btn-back-from-profile').addEventListener('click', function(){ showPage('page-timesheets'); });
+el('btn-back-from-profile').addEventListener('click', function(){ showPage('page-timesheets'); loadTimesheets(); });
 el('btn-show-forgot').addEventListener('click', function(){ openModal('forgot-modal'); });
 el('btn-f-submit').addEventListener('click', function(){
   var email = el('f-email').value.trim();
@@ -2725,10 +2767,11 @@ el('btn-save-settings').addEventListener('click', function(){
   });
 });
 document.querySelectorAll('.btn-back-to-admin').forEach(function(b){
-  b.addEventListener('click', function(){ showPage('page-admin'); });
+  b.addEventListener('click', function(){ showPage('page-admin'); loadAdminUsers(); });
 });
 el('btn-back-from-admin').addEventListener('click', function(){
   showPage('page-timesheets');
+  loadTimesheets();
 });
 function loadAdminUsers(){
   apiCall('admin_users').then(function(d){
