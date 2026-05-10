@@ -2026,22 +2026,54 @@ tbody td{padding:.875rem 1.25rem;font-size:.875rem;color:var(--text-primary);ver
       Back to Timesheets
     </button>
     <div class="page-title">My Profile</div>
-    <div class="card" style="max-width:500px">
-        <div class="modal-body">
-            <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:1.5rem">
-                <div class="user-avatar" id="profile-avatar-preview" style="width:80px;height:80px;font-size:1.75rem;margin-bottom:1rem;background-size:cover;background-position:center"></div>
-                <input type="file" id="prof-avatar-file" style="display:none" accept="image/*">
-                <button class="btn-ghost" id="btn-change-avatar" style="font-size:0.8rem">Change Photo</button>
+    
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:2rem;align-items:start;max-width:1000px">
+        <div class="card">
+            <div class="modal-body">
+                <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:1.5rem">
+                    <div class="user-avatar" id="profile-avatar-preview" style="width:80px;height:80px;font-size:1.75rem;margin-bottom:1rem;background-size:cover;background-position:center"></div>
+                    <input type="file" id="prof-avatar-file" style="display:none" accept="image/*">
+                    <button class="btn-ghost" id="btn-change-avatar" style="font-size:0.8rem">Change Photo</button>
+                </div>
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="prof-name" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="prof-email" class="form-control">
+                </div>
+                <button class="btn-primary" id="btn-save-profile">Update Profile</button>
             </div>
-            <div class="form-group">
-                <label>Full Name</label>
-                <input type="text" id="prof-name" class="form-control">
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:1.5rem">
+            <div class="card" style="padding:1.5rem">
+                <div style="font-weight:700;margin-bottom:1.25rem;font-size:1.1rem">Yearly Overview</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+                    <div style="background:var(--blue-light);padding:1.25rem;border-radius:var(--radius);text-align:center">
+                        <div style="font-size:2rem;font-weight:800;color:var(--blue)" id="prof-stat-hours">0</div>
+                        <div style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em">Total Hours</div>
+                    </div>
+                    <div style="background:var(--green-bg);padding:1.25rem;border-radius:var(--radius);text-align:center">
+                        <div style="font-size:2rem;font-weight:800;color:var(--green)" id="prof-stat-weeks">0</div>
+                        <div style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em">Weeks Logged</div>
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" id="prof-email" class="form-control">
+            <div class="card">
+                <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);font-weight:700;font-size:1.1rem">Account Info</div>
+                <div style="padding:1.5rem">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border-light)">
+                        <span style="color:var(--text-secondary);font-size:0.9rem">Role</span>
+                        <span style="font-weight:600;text-transform:capitalize" id="prof-stat-role">User</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between">
+                        <span style="color:var(--text-secondary);font-size:0.9rem">Standard Hours</span>
+                        <span style="font-weight:600" id="prof-stat-std">40 hrs/wk</span>
+                    </div>
+                </div>
             </div>
-            <button class="btn-primary" id="btn-save-profile">Update Profile</button>
         </div>
     </div>
   </div>
@@ -2570,6 +2602,35 @@ el('btn-show-profile').addEventListener('click', function(){
     av.textContent = getInitials(STATE.user.name);
     av.style.backgroundImage = 'none';
   }
+  
+  function updateStats() {
+      var totalHrs = 0;
+      var weeksLogged = 0;
+      var stdHrs = 40;
+      if(STATE.timesheets && STATE.timesheets.length > 0) {
+          STATE.timesheets.forEach(function(w){
+              if(w.total_hours > 0) {
+                  totalHrs += w.total_hours;
+                  weeksLogged++;
+              }
+          });
+          stdHrs = STATE.timesheets[0].std_hours;
+      }
+      if(el('prof-stat-hours')) el('prof-stat-hours').textContent = totalHrs.toFixed(1);
+      if(el('prof-stat-weeks')) el('prof-stat-weeks').textContent = weeksLogged;
+      if(el('prof-stat-role')) el('prof-stat-role').textContent = STATE.user.role;
+      if(el('prof-stat-std')) el('prof-stat-std').textContent = stdHrs + ' hrs/wk';
+  }
+
+  if(!STATE.timesheets || STATE.timesheets.length === 0) {
+      apiCall('timesheets').then(function(d){
+          if(d.success) STATE.timesheets = d.timesheets;
+          updateStats();
+      });
+  } else {
+      updateStats();
+  }
+
   showPage('page-profile');
 });
 el('btn-change-avatar').addEventListener('click', function(){ el('prof-avatar-file').click(); });
@@ -2944,7 +3005,8 @@ function loadTasks(){
   prefetchProjectsAndTypes();
   let p1 = apiCall('tasks');
   let p2 = STATE.allUsers.length ? Promise.resolve() : apiCall('users_list').then(d => { if(d.success) STATE.allUsers = d.users; });
-  Promise.all([p1, p2]).then(res => {
+  let p3 = STATE.projects.length ? Promise.resolve() : apiCall('projects').then(d => { if(d.success) STATE.projects = d.projects; });
+  Promise.all([p1, p2, p3]).then(res => {
     if(res[0].success) { 
       STATE.tasks = res[0].tasks; 
       populateTaskFilters();
