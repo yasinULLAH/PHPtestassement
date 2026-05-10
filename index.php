@@ -8,8 +8,15 @@ define('SESSION_IDLE_TIMEOUT', 2400);
 define('SESSION_ABSOLUTE_TIMEOUT', 28800);
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_strict_mode', 1);
+$isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+if ($isSecure) {
+  ini_set('session.cookie_secure', 1);
+  ini_set('session.cookie_samesite', 'Strict');
+}
 date_default_timezone_set('UTC');
 session_start();
+// Auto-generate favicon.ico from logo.png if it doesn't exist and GD is available. This is a one-time operation to ensure the app has a favicon without needing manual setup. disaable if not needed or if GD is not available.
+/*
 if (!file_exists('favicon.ico') && file_exists('logo.png')) {
   $sizes = [16, 32, 48, 72, 96, 128, 144, 152, 180, 192, 384, 512];
   $srcImg = @imagecreatefrompng('logo.png');
@@ -38,7 +45,7 @@ if (!file_exists('favicon.ico') && file_exists('logo.png')) {
     }
   }
 }
-
+*/
 function getDB(): PDO
 {
   static $pdo = null;
@@ -985,13 +992,16 @@ if ($api !== '') {
       if ($file['error'] !== UPLOAD_ERR_OK)
         jsonError('Upload failed.');
       $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
-      if (!array_key_exists($file['type'], $allowed))
+      $finfo = finfo_open(FILEINFO_MIME_TYPE);
+      $realMime = finfo_file($finfo, $file['tmp_name']);
+      finfo_close($finfo);
+      if (!array_key_exists($realMime, $allowed))
         jsonError('Invalid file type. Only JPG, PNG, and WebP allowed.');
       if ($file['size'] > 2 * 1024 * 1024)
         jsonError('File too large. Max 2MB.');
       if (!@getimagesize($file['tmp_name']))
         jsonError('Invalid image content. File may be corrupted or malicious.');
-      $ext = $allowed[$file['type']];
+      $ext = $allowed[$realMime];
       $filename = 'avatar_' . $_SESSION['user_id'] . '_' . time() . '.' . $ext;
       $uploadDir = 'uploads/avatars/';
       if (!is_dir($uploadDir)) {
